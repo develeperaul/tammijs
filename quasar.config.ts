@@ -1,212 +1,172 @@
-// Configuration for your app
-// https://v2.quasar.dev/quasar-cli-vite/quasar-config-file
-
 import { defineConfig } from '#q-app/wrappers';
-
+import { config } from 'dotenv';
+config();
 export default defineConfig((/* ctx */) => {
+
   return {
-    // https://v2.quasar.dev/quasar-cli-vite/prefetch-feature
-    // preFetch: true,
+    // Подключаем TypeScript
+    supportTS: {
+      tsCheckerConfig: {
+        eslint: {
+          enabled: true,
+          files: './src/**/*.{ts,tsx,js,jsx,vue}',
+        },
+      },
+    },
 
-    // app boot file (/src/boot)
-    // --> boot files are part of "main.js"
-    // https://v2.quasar.dev/quasar-cli-vite/boot-files
+    // Boot файлы
     boot: [
+      'axios',
     ],
 
-    // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#css
+    // CSS
     css: [
-      'app.scss'
+      'app.scss',
     ],
 
-    // https://github.com/quasarframework/quasar/tree/dev/extras
+    // Внешние зависимости
     extras: [
-      // 'ionicons-v4',
-      // 'mdi-v7',
-      // 'fontawesome-v6',
-      // 'eva-icons',
-      // 'themify',
-      // 'line-awesome',
-      // 'roboto-font-latin-ext', // this or either 'roboto-font', NEVER both!
-
-      'roboto-font', // optional, you are not bound to it
-      'material-icons', // optional, you are not bound to it
+      'roboto-font', // шрифт
+      'material-icons', // иконки
     ],
 
-    // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#build
+    // Сборка
     build: {
       target: {
-        browser: [ 'es2022', 'firefox115', 'chrome115', 'safari14' ],
-        node: 'node20'
+        browser: ['es2019', 'edge88', 'firefox78', 'chrome87', 'safari13.1'],
+        node: 'node20',
       },
 
-      typescript: {
-        strict: true,
-        vueShim: true
-        // extendTsConfig (tsConfig) {}
+      vueRouterMode: 'history', // или 'hash'
+
+      // Переменные окружения
+      env: {
+        API_URL: process.env.API_URL || '/api',
+        API_TOKEN: process.env.API_TOKEN || '',
+        APP_NAME: JSON.stringify('Food CRM'),
+        APP_VERSION: JSON.stringify(process.env.npm_package_version),
       },
 
-      vueRouterMode: 'hash', // available values: 'hash', 'history'
-      // vueRouterBase,
-      // vueDevtools,
-      // vueOptionsAPI: false,
-
-      // rebuildCache: true, // rebuilds Vite/linter/etc cache on startup
-
-      // publicPath: '/',
-      // analyze: true,
-      // env: {},
-      // rawDefine: {}
-      // ignorePublicFolder: true,
-      // minify: false,
-      // polyfillModulePreload: true,
-      // distDir
-
-      // extendViteConf (viteConf) {},
-      // viteVuePluginOptions: {},
-      
-      // vitePlugins: [
-      //   [ 'package-name', { ..pluginOptions.. }, { server: true, client: true } ]
-      // ]
+      // Дополнительные настройки Vite
+      extendViteConf(viteConf) {
+        // Алиасы
+        viteConf.resolve = viteConf.resolve || {};
+        viteConf.resolve.alias = {
+          ...viteConf.resolve.alias,
+          '@': '/src',
+          'components': '/src/components',
+          'composables': '/src/composables',
+          'types': '/src/types',
+          'services': '/src/services',
+        };
+      },
     },
 
-    // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#devserver
+    // DevServer
     devServer: {
-      // https: true,
-      open: true // opens browser window automatically
+      open: true, // открывать браузер
+      port: 9000,
+      proxy: {
+        // Прокси для API
+        '/api': {
+          target: 'https://tammi.2apps.ru/',
+          changeOrigin: true,
+          // rewrite: (path) => path.replace(/^\/api/, '')
+        },
+      },
     },
 
-    // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#framework
+    // Настройка фреймворка
     framework: {
-      config: {},
+      config: {
+        notify: {}, // конфиг уведомлений
+        loading: {}, // конфиг загрузки
+        // dark: 'auto', // авто-темная тема
+      },
 
-      // iconSet: 'material-icons', // Quasar icon set
-      // lang: 'en-US', // Quasar language pack
-
-      // For special cases outside of where the auto-import strategy can have an impact
-      // (like functional components as one of the examples),
-      // you can manually specify Quasar components/directives to be available everywhere:
-      //
-      // components: [],
-      // directives: [],
-
-      // Quasar plugins
-      plugins: []
-    },
-
-    // animations: 'all', // --- includes all animations
-    // https://v2.quasar.dev/options/animations
-    animations: [],
-
-    // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#sourcefiles
-    // sourceFiles: {
-    //   rootComponent: 'src/App.vue',
-    //   router: 'src/router/index',
-    //   store: 'src/store/index',
-    //   pwaRegisterServiceWorker: 'src-pwa/register-service-worker',
-    //   pwaServiceWorker: 'src-pwa/custom-service-worker',
-    //   pwaManifestFile: 'src-pwa/manifest.json',
-    //   electronMain: 'src-electron/electron-main',
-    //   electronPreload: 'src-electron/electron-preload'
-    //   bexManifestFile: 'src-bex/manifest.json
-    // },
-
-    // https://v2.quasar.dev/quasar-cli-vite/developing-ssr/configuring-ssr
-    ssr: {
-      prodPort: 3000, // The default port that the production server should use
-                      // (gets superseded if process.env.PORT is specified at runtime)
-
-      middlewares: [
-        'render' // keep this as last one
+      // Плагины Quasar
+      plugins: [
+        'Notify',
+        'Dialog',
+        'Loading',
+        'LocalStorage',
+        'SessionStorage',
       ],
 
-      // extendPackageJson (json) {},
-      // extendSSRWebserverConf (esbuildConf) {},
-
-      // manualStoreSerialization: true,
-      // manualStoreSsrContextInjection: true,
-      // manualStoreHydration: true,
-      // manualPostHydrationTrigger: true,
-
-      pwa: false
-      // pwaOfflineHtmlFilename: 'offline.html', // do NOT use index.html as name!
-
-      // pwaExtendGenerateSWOptions (cfg) {},
-      // pwaExtendInjectManifestOptions (cfg) {}
+      // Иконки
+      iconSet: 'material-icons',
+      lang: 'ru', // русский язык
     },
 
-    // https://v2.quasar.dev/quasar-cli-vite/developing-pwa/configuring-pwa
+    // Анимации
+    animations: 'all', // все анимации
+
+    // PWA (если нужно)
     pwa: {
-      workboxMode: 'GenerateSW' // 'GenerateSW' or 'InjectManifest'
-      // swFilename: 'sw.js',
-      // manifestFilename: 'manifest.json',
-      // extendManifestJson (json) {},
-      // useCredentialsForManifestTag: true,
-      // injectPwaMetaTags: false,
-      // extendPWACustomSWConf (esbuildConf) {},
-      // extendGenerateSWOptions (cfg) {},
-      // extendInjectManifestOptions (cfg) {}
-    },
-
-    // Full list of options: https://v2.quasar.dev/quasar-cli-vite/developing-cordova-apps/configuring-cordova
-    cordova: {
-      // noIosLegacyBuildFlag: true, // uncomment only if you know what you are doing
-    },
-
-    // Full list of options: https://v2.quasar.dev/quasar-cli-vite/developing-capacitor-apps/configuring-capacitor
-    capacitor: {
-      hideSplashscreen: true
-    },
-
-    // Full list of options: https://v2.quasar.dev/quasar-cli-vite/developing-electron-apps/configuring-electron
-    electron: {
-      // extendElectronMainConf (esbuildConf) {},
-      // extendElectronPreloadConf (esbuildConf) {},
-
-      // extendPackageJson (json) {},
-
-      // Electron preload scripts (if any) from /src-electron, WITHOUT file extension
-      preloadScripts: [ 'electron-preload' ],
-
-      // specify the debugging port to use for the Electron app when running in development mode
-      inspectPort: 5858,
-
-      bundler: 'packager', // 'packager' or 'builder'
-
-      packager: {
-        // https://github.com/electron-userland/electron-packager/blob/master/docs/api.md#options
-
-        // OS X / Mac App Store
-        // appBundleId: '',
-        // appCategoryType: '',
-        // osxSign: '',
-        // protocol: 'myapp://path',
-
-        // Windows only
-        // win32metadata: { ... }
+      workboxOptions: {
+        skipWaiting: true,
+        clientsClaim: true,
       },
-
-      builder: {
-        // https://www.electron.build/configuration
-
-        appId: 'tammijs'
-      }
+      manifest: {
+        name: 'Food CRM',
+        short_name: 'FoodCRM',
+        description: 'Система учета для общепита',
+        display: 'standalone',
+        orientation: 'portrait',
+        background_color: '#ffffff',
+        theme_color: '#027be3',
+        icons: [
+          {
+            src: 'icons/icon-128x128.png',
+            sizes: '128x128',
+            type: 'image/png',
+          },
+          {
+            src: 'icons/icon-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+          },
+          {
+            src: 'icons/icon-256x256.png',
+            sizes: '256x256',
+            type: 'image/png',
+          },
+          {
+            src: 'icons/icon-384x384.png',
+            sizes: '384x384',
+            type: 'image/png',
+          },
+          {
+            src: 'icons/icon-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+          },
+        ],
+      },
     },
 
-    // Full list of options: https://v2.quasar.dev/quasar-cli-vite/developing-browser-extensions/configuring-bex
-    bex: {
-      // extendBexScriptsConf (esbuildConf) {},
-      // extendBexManifestJson (json) {},
+    // Electron (если нужно)
+    electron: {
+      bundler: 'builder', // или 'packager'
+      builder: {
+        appId: 'food-crm',
+        productName: 'Food CRM',
+        directories: {
+          output: 'dist/electron',
+        },
+      },
+    },
 
-      /**
-       * The list of extra scripts (js/ts) not in your bex manifest that you want to
-       * compile and use in your browser extension. Maybe dynamic use them?
-       *
-       * Each entry in the list should be a relative filename to /src-bex/
-       *
-       * @example [ 'my-script.ts', 'sub-folder/my-other-script.js' ]
-       */
-      extraScripts: []
-    }
-  }
+    // Capacitor (мобильное приложение)
+    capacitor: {
+      hideSplashscreen: true,
+    },
+
+    // SSR (если нужно)
+    ssr: {
+      prodPort: 3000,
+      middlewares: ['render'],
+      pwa: false,
+    },
+  };
 });

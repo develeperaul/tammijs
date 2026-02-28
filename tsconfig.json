@@ -1,3 +1,44 @@
+// {
+//   "extends": "./.quasar/tsconfig.json"
+// }
 {
-  "extends": "./.quasar/tsconfig.json"
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "jsx": "preserve",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "src/*": ["src/*"],
+      "components/*": ["src/components/*"],
+      "composables/*": ["src/composables/*"],
+      "types/*": ["src/types/*"],
+      "services/*": ["src/services/*"],
+      "boot/*": ["src/boot/*"],
+      "layouts/*": ["src/layouts/*"],
+      "pages/*": ["src/pages/*"],
+      "router/*": ["src/router/*"],
+      "stores/*": ["src/stores/*"]
+    },
+    "lib": ["esnext", "dom", "dom.iterable", "scripthost"],
+    "types": [
+      "node", 
+      "vite/client"
+    ]
+  },
+  "include": [
+    "src/**/*",
+    "src/**/*.vue",
+    "src/**/*.ts",
+    "src/**/*.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }
