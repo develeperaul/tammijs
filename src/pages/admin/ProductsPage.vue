@@ -137,7 +137,7 @@ export default defineComponent({
     // Загрузка категорий
     const loadCategories = async () => {
       try {
-        categories.value = await productService.getCategories();
+        categories.value = (await productService.getCategories()).data;
       } catch (error) {
         console.error('Ошибка загрузки категорий:', error);
       }

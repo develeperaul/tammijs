@@ -38,16 +38,21 @@
             outlined
             dense
             clearable
+            emit-value
+            map-options
           />
 
           <div class="row q-gutter-sm">
             <!-- Единица измерения -->
-            <q-input
+            <q-select
               v-model="form.unit"
+              :options="unitOptions"
               label="Ед. изм. *"
               outlined
               dense
               class="col"
+              emit-value
+              map-options
               :rules="[val => !!val || 'Обязательное поле']"
             />
 
@@ -64,14 +69,14 @@
 
           <div class="row q-gutter-sm">
             <!-- Себестоимость -->
-            <q-input
+            <!-- <q-input
               v-model.number="form.costPrice"
               label="Себестоимость"
               outlined
               dense
               type="number"
               class="col"
-            />
+            /> -->
 
             <!-- Мин. остаток -->
             <q-input
@@ -138,17 +143,24 @@ export default defineComponent({
     const dialog = ref<any>(null);
     const isEdit = ref(!!props.product);
 
+    // ✅ Правильные значения для типа товара (как в бэкенде)
     const typeOptions = [
-      { label: 'Ингредиент', value: 'ingredient' },
-      { label: 'Готовый', value: 'finished' },
-      { label: 'Полуфабрикат', value: 'semi-finished' }
+      { label: 'Ингредиент', value: 'ингредиент' },
+      { label: 'Готовый', value: 'готовое' },
+      { label: 'Полуфабрикат', value: 'полуфабрикат' }
+    ];
+    const unitOptions = [
+      { label: 'кг', value: 'кг' },
+      { label: 'шт', value: 'шт' },
+      { label: 'л', value: 'л' },
+
     ];
 
     const form = ref<CreateProductDto>({
       name: '',
-      type: 'ingredient',
-      unit: 'шт',
-      costPrice: 0,
+      type: 1, // ✅ строка, а не число
+      unit: 1,
+      // costPrice: 0,
       sellingPrice: 0,
       currentStock: 0,
       minStock: 0,
@@ -161,22 +173,22 @@ export default defineComponent({
       if (newVal) {
         form.value = {
           name: newVal.name,
-          type: newVal.type,
+          type: newVal.type,          // уже строка
           unit: newVal.unit,
-          costPrice: newVal.costPrice,
+          // costPrice: newVal.costPrice,
           sellingPrice: newVal.sellingPrice,
           currentStock: newVal.currentStock,
           minStock: newVal.minStock,
-          categoryId: newVal.categoryId,
+          categoryId: newVal.categoryId, // ✅ раскомментировано
           description: newVal.description || ''
         };
         isEdit.value = true;
       } else {
         form.value = {
           name: '',
-          type: 'ingredient',
+          type: 'Ингредиент', // ✅ строка
           unit: 'шт',
-          costPrice: 0,
+          // costPrice: 0,
           sellingPrice: 0,
           currentStock: 0,
           minStock: 0,
@@ -209,6 +221,7 @@ export default defineComponent({
       form,
       isEdit,
       typeOptions,
+      unitOptions,
       show,
       hide,
       onSubmit,

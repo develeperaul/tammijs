@@ -65,7 +65,7 @@ export default defineConfig((/* ctx */) => {
     // DevServer
     devServer: {
       open: true, // открывать браузер
-      port: 9000,
+      // port: 9000,
       proxy: {
         // Прокси для API
         '/api': {

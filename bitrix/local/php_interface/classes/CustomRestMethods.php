@@ -6,7 +6,7 @@ use Bitrix\Main\Type\DateTime;
 
 class CustomRestMethods
 {
-    // Константы для идентификаторов (ЗАМЕНИТЕ НА СВОИ)
+    // Константы для идентификаторов (замените на свои)
     const IBLOCK_PRODUCTS = 1;           // ID инфоблока «Товары»
     const HL_ORDERS = 2;                 // ID HL-блока «Orders»
     const HL_ORDER_ITEMS = 3;            // ID HL-блока «OrderItems»
@@ -32,34 +32,36 @@ class CustomRestMethods
         }
 
         $select = [
-            'ID', 'NAME', 'CODE', 'ACTIVE',
-            'PROPERTY_TYPE', 'PROPERTY_UNIT',
-            'PROPERTY_COST_PRICE', 'PROPERTY_SELLING_PRICE',
-            'PROPERTY_CURRENT_STOCK', 'PROPERTY_MIN_STOCK',
-            'PROPERTY_CATEGORY', 'PROPERTY_PHOTO'
+            'ID', 'NAME', 'IBLOCK_SECTION_ID', 'CODE', 'ACTIVE',
+            'PROPERTY_TYPE',
+            'PROPERTY_UNIT',
+            'PROPERTY_COST_PRICE',
+            'PROPERTY_SELLING_PRICE',
+            'PROPERTY_CURRENT_STOCK',
+            'PROPERTY_MIN_STOCK',
+            'PROPERTY_PHOTO'
         ];
 
         $result = [];
         $res = \CIBlockElement::GetList(['SORT' => 'ASC'], $filter, false, false, $select);
-        while ($item = $res->GetNextElement()) {
-            $fields = $item->GetFields();
-            $props = $item->GetProperties();
+        while ($fields = $res->GetNext()) {
             $result[] = [
-                'id' => (int)$fields['ID'],
-                'name' => $fields['NAME'],
-                'code' => $fields['CODE'],
-                'active' => $fields['ACTIVE'] === 'Y',
-                'type' => $props['TYPE']['VALUE'],
-                'unit' => $props['UNIT']['VALUE'],
-                'cost_price' => (float)$props['COST_PRICE']['VALUE'],
-                'selling_price' => (float)$props['SELLING_PRICE']['VALUE'],
-                'current_stock' => (float)$props['CURRENT_STOCK']['VALUE'],
-                'min_stock' => (float)$props['MIN_STOCK']['VALUE'],
-                'category_id' => (int)$props['CATEGORY']['VALUE'],
-                'photo' => $props['PHOTO']['VALUE'] ? \CFile::GetPath($props['PHOTO']['VALUE']) : null,
+                'id'            => (int)$fields['ID'],
+                'name'          => $fields['NAME'],
+                'categoryId'    => $fields['IBLOCK_SECTION_ID'] ? (int)$fields['IBLOCK_SECTION_ID'] : null,
+                'type'          => $fields['PROPERTY_TYPE_VALUE'],
+                'code'          => $fields['CODE'],
+                'active'        => ($fields['ACTIVE'] === 'Y'),
+                'unit'          => $fields['PROPERTY_UNIT_VALUE'],
+                'costPrice'    => (float)$fields['PROPERTY_COST_PRICE_VALUE'],
+                'sellingPrice' => (float)$fields['PROPERTY_SELLING_PRICE_VALUE'],
+                'currentStock' => (float)$fields['PROPERTY_CURRENT_STOCK_VALUE'],
+                'minStock'     => (float)$fields['PROPERTY_MIN_STOCK_VALUE'],
+                'photo'         => $fields['PROPERTY_PHOTO_VALUE']
+                                   ? \CFile::GetPath($fields['PROPERTY_PHOTO_VALUE'])
+                                   : null,
             ];
         }
-
         return $result;
     }
 
@@ -68,7 +70,7 @@ class CustomRestMethods
      */
     public static function getStock($data = [])
     {
-        // По сути то же самое, что и getProducts, но можно добавить фильтр по остаткам
+        // Пока просто возвращаем товары, можно добавить фильтр lowStock
         return self::getProducts($data);
     }
 
@@ -118,7 +120,7 @@ class CustomRestMethods
             throw new \Exception('Invalid movement type');
         }
 
-        // Сохраняем движение в HL-блок (используем ранее созданный хелпер)
+        // Сохраняем движение в HL-блок
         $fields = [
             'UF_PRODUCT_ID' => $productId,
             'UF_TYPE' => $type,
@@ -131,7 +133,7 @@ class CustomRestMethods
             'UF_CREATED_AT' => new DateTime(),
         ];
 
-        // Предполагаем, что класс StockMovementHelper уже загружен автозагрузкой
+        // Используем хелпер (должен быть загружен автозагрузкой)
         $movementId = StockMovementHelper::addMovement($fields);
 
         // Обновляем остаток в инфоблоке
@@ -153,7 +155,6 @@ class CustomRestMethods
     public static function getOrders($data = [])
     {
         Loader::includeModule('highloadblock');
-        // Используем OrderHelper
         $filter = [];
         if (!empty($data['status'])) {
             $filter['=UF_STATUS'] = $data['status'];
@@ -172,7 +173,6 @@ class CustomRestMethods
         foreach ($orders as &$order) {
             $order['ITEMS'] = OrderItemHelper::getByOrderId($order['ID']);
         }
-
         return $orders;
     }
 
@@ -248,7 +248,6 @@ class CustomRestMethods
     public static function getRecipes($data = [])
     {
         Loader::includeModule('highloadblock');
-        // Прямой запрос к HL-блоку Recipes
         $entity = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity(
             \Bitrix\Highloadblock\HighloadBlockTable::getById(self::HL_RECIPES)->fetch()
         );
@@ -260,7 +259,6 @@ class CustomRestMethods
         ]);
         $recipes = [];
         while ($row = $res->fetch()) {
-            // Для каждого рецепта можно подгрузить ингредиенты (опционально)
             $row['INGREDIENTS'] = self::getRecipeIngredients($row['ID']);
             $recipes[] = $row;
         }
@@ -337,5 +335,210 @@ class CustomRestMethods
             'select' => ['*']
         ]);
         return $res->fetchAll();
+    }
+
+    /**
+     * Получить список категорий (разделов инфоблока товаров)
+     */
+    public static function getCategories($data = [])
+    {
+        \Bitrix\Main\Loader::includeModule('iblock');
+        $iblockId = self::IBLOCK_PRODUCTS;
+
+        $result = [];
+        $res = \CIBlockSection::GetList(
+            ['SORT' => 'ASC'],
+            ['IBLOCK_ID' => $iblockId, 'ACTIVE' => 'Y'],
+            false,
+            ['ID', 'NAME', 'CODE', 'SORT', 'DEPTH_LEVEL', 'IBLOCK_SECTION_ID']
+        );
+        while ($section = $res->Fetch()) {
+            $result[] = [
+                'id'   => (int)$section['ID'],
+                'name' => $section['NAME'],
+            ];
+        }
+        return $result;
+    }
+
+    /**
+     * Создать новый товар
+     */
+    public static function createProduct($data = [])
+    {
+        \Bitrix\Main\Loader::includeModule('iblock');
+
+        $required = ['name', 'type', 'unit'];
+        foreach ($required as $field) {
+            if (empty($data[$field])) {
+                throw new \Exception("Field {$field} is required");
+            }
+        }
+
+        // Преобразуем тип (type) в ID варианта списка
+        $typeEnumId = null;
+        if (!empty($data['type'])) {
+            $enumRes = \CIBlockPropertyEnum::GetList(
+                [],
+                ['IBLOCK_ID' => self::IBLOCK_PRODUCTS, 'CODE' => 'TYPE', 'VALUE' => $data['type']]
+            );
+            if ($enum = $enumRes->Fetch()) {
+                $typeEnumId = $enum['ID'];
+            } else {
+                throw new \Exception("Invalid type value: {$data['type']}");
+            }
+        }
+
+        // Преобразуем единицу измерения (unit) в ID варианта списка
+        $unitEnumId = null;
+        if (!empty($data['unit'])) {
+            $enumRes = \CIBlockPropertyEnum::GetList(
+                [],
+                ['IBLOCK_ID' => self::IBLOCK_PRODUCTS, 'CODE' => 'UNIT', 'VALUE' => $data['unit']]
+            );
+            if ($enum = $enumRes->Fetch()) {
+                $unitEnumId = $enum['ID'];
+            } else {
+                throw new \Exception("Invalid unit value: {$data['unit']}");
+            }
+        }
+
+        $el = new \CIBlockElement();
+
+        $code = \CUtil::translit($data['name'], 'ru', [
+            'replace_space' => '-',
+            'replace_other' => '-',
+            'max_len' => 100,
+            'change_case' => 'L'
+        ]);
+
+        $arFields = [
+            'IBLOCK_SECTION_ID' => (int)($data['categoryId'] ?? null),
+            'IBLOCK_ID' => self::IBLOCK_PRODUCTS,
+            'NAME' => $data['name'],
+            'CODE' => $code,
+            'ACTIVE' => 'Y',
+            'PREVIEW_TEXT' => $data['description'] ?? '',
+            'PROPERTY_VALUES' => [
+                'TYPE' => $typeEnumId,        // ✅ ID варианта
+                'UNIT' => $unitEnumId,         // ✅ ID варианта
+                'COST_PRICE' => (float)($data['costPrice'] ?? 0),
+                'SELLING_PRICE' => (float)($data['sellingPrice'] ?? 0),
+                'CURRENT_STOCK' => (float)($data['currentStock'] ?? 0),
+                'MIN_STOCK' => (float)($data['minStock'] ?? 0),
+            ],
+        ];
+
+        $productId = $el->Add($arFields);
+        if (!$productId) {
+            throw new \Exception('Ошибка создания товара: ' . $el->LAST_ERROR);
+        }
+
+        return [
+            'id' => $productId,
+            'name' => $data['name'],
+        ];
+    }
+
+    /**
+     * Удалить товар по ID
+     */
+    public static function deleteProduct($data = [])
+    {
+        \Bitrix\Main\Loader::includeModule('iblock');
+        $id = (int)($data['id'] ?? 0);
+        if (!$id) {
+            throw new \Exception('ID товара не указан');
+        }
+
+        $res = \CIBlockElement::GetByID($id);
+        if (!$res->Fetch()) {
+            throw new \Exception('Товар не найден');
+        }
+
+        if (!\CIBlockElement::Delete($id)) {
+            throw new \Exception('Ошибка удаления товара');
+        }
+
+        return ['success' => true, 'id' => $id];
+    }
+
+    /**
+     * Обновить товар по ID (PUT)
+     */
+    public static function updateProduct($data = [])
+    {
+        \Bitrix\Main\Loader::includeModule('iblock');
+        $id = (int)($data['id'] ?? 0);
+        if (!$id) {
+            throw new \Exception('ID товара не указан');
+        }
+
+        $res = \CIBlockElement::GetByID($id);
+        if (!$res->Fetch()) {
+            throw new \Exception('Товар не найден');
+        }
+
+        $updateFields = [];
+
+        // Основные поля
+        if (!empty($data['name'])) {
+            $updateFields['NAME'] = $data['name'];
+            $updateFields['CODE'] = \CUtil::translit($data['name'], 'ru', [
+                'replace_space' => '-',
+                'replace_other' => '-',
+                'max_len' => 100,
+                'change_case' => 'L'
+            ]);
+        }
+        if (array_key_exists('description', $data)) {
+            $updateFields['PREVIEW_TEXT'] = $data['description'];
+        }
+
+        // Категория (раздел) обновляется отдельно, это не свойство
+        if (array_key_exists('categoryId', $data)) {
+            $updateFields['IBLOCK_SECTION_ID'] = (int)$data['categoryId'] ?: null;
+        }
+
+        // Свойства товара (кроме categoryId)
+        $props = [];
+        $propFields = ['type', 'unit', 'costPrice', 'sellingPrice', 'currentStock', 'minStock'];
+        foreach ($propFields as $prop) {
+            if (array_key_exists($prop, $data)) {
+                $value = $data[$prop];
+                
+                // Для type и unit преобразуем в ID варианта списка
+                if ($prop === 'type' || $prop === 'unit') {
+                    $enumRes = \CIBlockPropertyEnum::GetList(
+                        [],
+                        ['IBLOCK_ID' => self::IBLOCK_PRODUCTS, 'CODE' => strtoupper($prop), 'VALUE' => $value]
+                    );
+                    if ($enum = $enumRes->Fetch()) {
+                        $value = $enum['ID'];
+                    } else {
+                        throw new \Exception("Invalid {$prop} value: {$value}");
+                    }
+                } elseif (in_array($prop, ['costPrice', 'sellingPrice', 'currentStock', 'minStock'])) {
+                    $value = (float)$value;
+                }
+                
+                $props[strtoupper($prop)] = $value;
+            }
+        }
+
+        if (!empty($props)) {
+            $updateFields['PROPERTY_VALUES'] = $props;
+        }
+
+        if (empty($updateFields)) {
+            throw new \Exception('Нет данных для обновления');
+        }
+
+        $el = new \CIBlockElement();
+        if (!$el->Update($id, $updateFields)) {
+            throw new \Exception('Ошибка обновления товара: ' . $el->LAST_ERROR);
+        }
+
+        return ['success' => true, 'id' => $id];
     }
 }

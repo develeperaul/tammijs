@@ -83,7 +83,7 @@ class ProductService {
    * Получить категории
    * Предполагается, что на бэкенде есть action 'categories.get'
    */
-  async getCategories(): Promise<ProductCategory[]> {
+  async getCategories(): Promise<ApiResponse<ProductCategory[]>> {
     const params = { action: 'categories.get' };
     const response = await api.get('/index.php', { params });
     return response.data;

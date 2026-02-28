@@ -1,11 +1,11 @@
-export type ProductType = 'ingredient' | 'finished' | 'semi-finished';
+// export type ProductType = 'ingredient' | 'finished' | 'semi-finished';
 
 export interface Product {
   id: number;
   name: string;
   code: string;
   active: boolean;
-  type: ProductType;
+  type: number;
   unit: string;
   costPrice: number;
   sellingPrice: number;
@@ -20,7 +20,7 @@ export interface Product {
 
 export interface ProductFilter {
   categoryId?: number;
-  type?: ProductType;
+  type?: number;
   active?: boolean;
   lowStock?: boolean;
   search?: string;
@@ -28,8 +28,8 @@ export interface ProductFilter {
 
 export interface CreateProductDto {
   name: string;
-  type: ProductType;
-  unit: string;
+  type: number;
+  unit: number;
   costPrice?: number;
   sellingPrice?: number;
   currentStock?: number;
@@ -41,6 +41,6 @@ export interface CreateProductDto {
 export interface ProductCategory {
   id: number;
   name: string;
-  parentId?: number;
-  sortOrder: number;
+  // parentId?: number;
+  // sortOrder: number;
 }

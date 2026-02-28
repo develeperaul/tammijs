@@ -75,7 +75,7 @@
 
       <template v-slot:body-cell-stock="props">
         <q-td :props="props">
-          <div class="row items-center">
+          <div class="row flex-center">
             <q-badge :color="getStockColor(props.row)" class="q-mr-sm">
               {{ props.row.currentStock }} {{ props.row.unit }}
             </q-badge>

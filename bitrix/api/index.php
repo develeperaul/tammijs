@@ -52,8 +52,12 @@ if (!$action) {
 $method = $_SERVER['REQUEST_METHOD'];
 
 // Получаем входные данные (JSON или form-data)
-$input = file_get_contents('php://input');
-$data = json_decode($input, true) ?? $_POST;
+
+// $input = file_get_contents('php://input');
+// $data = json_decode($input, true) ?? $_POST;
+
+$input = json_decode(file_get_contents('php://input'), true) ?? [];
+$data = array_merge($_GET, $input, $_POST);
 
 // Подключаем наши классы (если автозагрузка не работает – подключаем вручную)
 require_once($_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/classes/CustomRestMethods.php');
@@ -72,6 +76,10 @@ $routes = [
     'recipe.create'          => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'createRecipe']],
     'recipe.calculate.cost'  => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'calculateRecipeCost']],
     'kitchen.orders'         => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getKitchenOrders']],
+    'categories.get'         => ['method' => 'GET', 'callback' => ['CustomRestMethods', 'getCategories']],
+    'product.create'         => ['method' => 'POST', 'callback' => ['CustomRestMethods', 'createProduct']],
+    'product.delete'         => ['method' => 'DELETE', 'callback' => ['CustomRestMethods', 'deleteProduct']],
+    'product.update' => ['method' => 'PUT', 'callback' => ['CustomRestMethods', 'updateProduct']],
 ];
 
 if (!isset($routes[$action])) {
