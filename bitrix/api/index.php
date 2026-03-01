@@ -67,6 +67,7 @@ require_once($_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/classes/CustomRes
 $routes = [
     'products.get'           => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getProducts']],
     'stock.get'              => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getStock']],
+    'stock.history.get'      => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getStockHistory']],
     'stock.movement.add'     => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'addMovement']],
     'orders.get'             => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getOrders']],
     'order.create'           => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'createOrder']],

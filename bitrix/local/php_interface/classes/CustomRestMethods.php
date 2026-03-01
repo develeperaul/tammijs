@@ -75,6 +75,40 @@ class CustomRestMethods
     }
 
     /**
+     * Получить историю движений товаров
+     * @param array $data Параметры: productId, dateFrom, dateTo, limit, offset
+     * @return array
+     */
+    public static function getStockHistory($data = [])
+    {
+        \Bitrix\Main\Loader::includeModule('highloadblock');
+        
+        $filter = [];
+        if (!empty($data['productId'])) {
+            $filter['=UF_PRODUCT_ID'] = (int)$data['productId'];
+        }
+        // ... остальные фильтры
+
+        $movements = StockMovementHelper::getMovements($filter, ['UF_CREATED_AT' => 'DESC'], $limit, $offset);
+        
+        // Трансформируем каждый элемент
+        $formatted = [];
+        foreach ($movements as $movement) {
+            $formatted[] = self::formatMovement($movement);
+        }
+        $limit = (int)($data['limit'] ?? 50);
+        $offset = (int)($data['offset'] ?? 0);
+        
+        return [
+            'data' => $formatted,
+            'total' => StockMovementHelper::getCount($filter),
+            'limit' => $limit,
+            'offset' => $offset
+        ];
+    }
+    
+
+    /**
      * Добавить движение товара (приход/расход/списание)
      */
     public static function addMovement($data = [])
@@ -93,7 +127,7 @@ class CustomRestMethods
         $type = $data['type'];
         $quantity = (float)$data['quantity'];
 
-        // Получаем текущий остаток из инфоблока
+        // Получаем текущий остаток
         $res = \CIBlockElement::GetList(
             [],
             ['IBLOCK_ID' => self::IBLOCK_PRODUCTS, 'ID' => $productId],
@@ -120,23 +154,33 @@ class CustomRestMethods
             throw new \Exception('Invalid movement type');
         }
 
-        // Сохраняем движение в HL-блок
+        // Получаем ID типа движения по XML_ID
+        $typeId = self::getEnumId('UF_TYPE', $type);
+        
+        // Получаем ID типа документа, если передан
+        $documentTypeId = null;
+        if (!empty($data['documentType'])) {
+            $documentTypeId = self::getEnumId('UF_DOCUMENT_TYPE', $data['documentType']);
+        }
+
+        // Получаем ID текущего пользователя
+        global $USER;
+        $userId = $USER->IsAuthorized() ? (int)$USER->GetID() : 0;
+
         $fields = [
             'UF_PRODUCT_ID' => $productId,
-            'UF_TYPE' => $type,
+            'UF_TYPE' => $typeId,
             'UF_QUANTITY' => $quantity,
             'UF_PRICE' => (float)($data['price'] ?? 0),
-            'UF_DOCUMENT_TYPE' => $data['documentType'] ?? 'manual',
+            'UF_DOCUMENT_TYPE' => $documentTypeId,
             'UF_DOCUMENT_ID' => (int)($data['documentId'] ?? 0),
             'UF_COMMENT' => $data['comment'] ?? '',
-            'UF_CREATED_BY' => (int)($data['userId'] ?? 0),
+            'UF_CREATED_BY' => $userId,
             'UF_CREATED_AT' => new DateTime(),
         ];
 
-        // Используем хелпер (должен быть загружен автозагрузкой)
         $movementId = StockMovementHelper::addMovement($fields);
 
-        // Обновляем остаток в инфоблоке
         \CIBlockElement::SetPropertyValuesEx(
             $productId,
             self::IBLOCK_PRODUCTS,
@@ -147,6 +191,21 @@ class CustomRestMethods
             'movementId' => $movementId,
             'newStock' => $newStock,
         ];
+    }
+
+    /**
+     * Получить ID значения списка по XML_ID
+     */
+    private static function getEnumId($fieldName, $xmlId)
+    {
+        if (empty($xmlId)) return null;
+        
+        $enum = \CUserFieldEnum::GetList([], [
+            'USER_FIELD_NAME' => $fieldName,
+            'XML_ID' => $xmlId
+        ])->Fetch();
+        
+        return $enum ? (int)$enum['ID'] : null;
     }
 
     /**
@@ -540,5 +599,82 @@ class CustomRestMethods
         }
 
         return ['success' => true, 'id' => $id];
+    }
+
+
+
+    /**
+     * Преобразовать данные из HL-блока в формат для фронтенда
+     */
+    private static function formatMovement($row)
+    {
+        // Получаем название товара
+        $productName = null;
+        if (!empty($row['UF_PRODUCT_ID'])) {
+            \Bitrix\Main\Loader::includeModule('iblock');
+            $res = \CIBlockElement::GetByID($row['UF_PRODUCT_ID']);
+            if ($product = $res->Fetch()) {
+                $productName = $product['NAME'];
+            }
+        }
+
+        return [
+            'id' => (int)$row['ID'],
+            'productId' => (int)$row['UF_PRODUCT_ID'],
+            'productName' => $productName,
+            'type' => self::getXmlById('UF_TYPE', $row['UF_TYPE']),
+            'quantity' => (float)$row['UF_QUANTITY'],
+            'price' => (float)($row['UF_PRICE'] ?? 0),
+            'documentType' => self::getXmlById('UF_DOCUMENT_TYPE', $row['UF_DOCUMENT_TYPE']),
+            'documentId' => (int)($row['UF_DOCUMENT_ID'] ?? 0),
+            'comment' => $row['UF_COMMENT'] ?? '',
+            'createdBy' => (int)($row['UF_CREATED_BY'] ?? 0),
+            'createdAt' => $row['UF_CREATED_AT'] instanceof DateTime 
+                ? $row['UF_CREATED_AT']->format('c') 
+                : (string)$row['UF_CREATED_AT'],
+        ];
+    }
+
+    /**
+     * Получить XML_ID значения списка по ID
+     */
+    private static function getXmlById($fieldName, $id)
+    {
+        if (empty($id)) return null;
+        
+        $enum = \CUserFieldEnum::GetList([], [
+            'USER_FIELD_NAME' => $fieldName,
+            'ID' => (int)$id
+        ])->Fetch();
+        
+        return $enum ? $enum['XML_ID'] : null;
+    }
+
+    /**
+     * Преобразовать ID типа движения в строковое значение
+     */
+    private static function mapMovementType($typeId)
+    {
+        $map = [
+            1 => 'income',
+            2 => 'outcome',
+            3 => 'write-off',
+            // добавьте другие соответствия
+        ];
+        return $map[(int)$typeId] ?? 'unknown';
+    }
+
+    /**
+     * Преобразовать ID типа документа в строковое значение
+     */
+    private static function mapDocumentType($typeId)
+    {
+        $map = [
+            1 => 'manual',
+            2 => 'invoice',
+            3 => 'sale',
+            // добавьте другие соответствия
+        ];
+        return $map[(int)$typeId] ?? 'manual';
     }
 }

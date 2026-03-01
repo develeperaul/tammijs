@@ -1,5 +1,8 @@
+import { api } from 'boot/axios';
+
 import { StockMovement, CreateMovementDto, WriteOffDto, StockHistoryFilter } from 'src/types/stock.types';
 import { Product } from 'src/types/product.types';
+import { ApiResponse } from 'src/types/api.types';
 
 // Мок-данные продуктов (возьмём из product.service, но чтобы не было циклических зависимостей, скопируем часть)
 const mockProducts: Product[] = [
@@ -97,6 +100,7 @@ let mockMovements: StockMovement[] = [
   }
 ];
 
+
 class StockService {
   private static instance: StockService;
 
@@ -110,55 +114,49 @@ class StockService {
   }
 
   /**
-   * Получить текущие остатки (список продуктов с актуальными остатками)
+   * Получить текущие остатки (список товаров с актуальными остатками)
    */
-  async getCurrentStock(): Promise<Product[]> {
-    await this.delay(400);
-    // Просто возвращаем копию продуктов, так как мы будем обновлять остатки через движения
-    return JSON.parse(JSON.stringify(mockProducts));
+  async getCurrentStock(filter?: {
+    categoryId?: number;
+    type?: string;
+    lowStock?: boolean;
+  }): Promise< ApiResponse<Product[]>> {
+    const params: Record<string, any> = { action: 'stock.get' };
+    if (filter?.categoryId) params.categoryId = filter.categoryId;
+    if (filter?.type) params.type = filter.type;
+    if (filter?.lowStock) params.lowStock = filter.lowStock ? '1' : '0';
+
+    const response = await api.get('/index.php', { params });
+    return response.data; // предполагаем, что API возвращает массив товаров
   }
 
   /**
    * Добавить движение (приход/расход) и обновить остаток продукта
    */
-  async addMovement(data: CreateMovementDto): Promise<{ movementId: number; newStock: number }> {
-    await this.delay(600);
+  // async addMovement(data: CreateMovementDto): Promise<{ movementId: number; newStock: number }> {
+  //   const response = await api.post('/index.php', data, {
+  //     params: { action: 'stock.movement.add' }
+  //   });
+  //   return response.data;
+  // }
+  async addMovement(data: {
+    productId: number;
+    type: string;
+    quantity: number;
+    price?: number;
+    documentType?: string;
+    documentId?: number;
+    comment?: string;
+  }): Promise<{ movementId: number; newStock: number }> {
+    console.log('Sending to API:', data); // для отладки
 
-    const product = mockProducts.find(p => p.id === data.productId);
-    if (!product) throw new Error('Товар не найден');
+    const response = await api.post('/index.php', data, {
+      params: { action: 'stock.movement.add' }
+    });
 
-    // Рассчитываем новый остаток
-    let newStock = product.currentStock;
-    if (data.type === 'income') {
-      newStock += data.quantity;
-    } else if (data.type === 'outcome' || data.type === 'write-off') {
-      if (product.currentStock < data.quantity) {
-        throw new Error('Недостаточно товара на складе');
-      }
-      newStock -= data.quantity;
-    } // для 'move' пока не реализуем
-
-    // Создаём запись движения
-    const movement: StockMovement = {
-      id: mockMovements.length + 1,
-      productId: data.productId,
-      productName: product.name,
-      type: data.type,
-      quantity: data.quantity,
-      price: data.price,
-      documentType: data.documentType,
-      documentId: data.documentId,
-      comment: data.comment,
-      createdBy: 1, // заглушка
-      createdAt: new Date().toISOString()
-    };
-    mockMovements.push(movement);
-
-    // Обновляем остаток продукта
-    product.currentStock = newStock;
-
-    return { movementId: movement.id, newStock };
+    return response.data;
   }
+
 
   /**
    * Массовое списание
@@ -167,36 +165,29 @@ class StockService {
     writeOffId: string;
     items: Array<{ productId: number; movementId: number; newStock: number }>;
   }> {
-    await this.delay(800);
-
     const results = [];
+
     for (const item of data.items) {
-      const product = mockProducts.find(p => p.id === item.productId);
-      if (!product) throw new Error(`Товар с id ${item.productId} не найден`);
-      if (product.currentStock < item.quantity) {
-        throw new Error(`Недостаточно товара "${product.name}" на складе`);
-      }
-
-      const movement: StockMovement = {
-        id: mockMovements.length + 1,
+      const movementData = {
         productId: item.productId,
-        productName: product.name,
-        type: 'write-off',
         quantity: item.quantity,
-        documentType: 'manual',
-        comment: data.reason + (item.reason ? ` (${item.reason})` : ''),
-        createdBy: 1,
-        createdAt: new Date().toISOString()
+        type: 'write-off',
+        comment: data.reason,
+        documentType: 'manual', // XML_ID manual
+        documentId: 0
       };
-      mockMovements.push(movement);
 
-      product.currentStock -= item.quantity;
-
-      results.push({
-        productId: item.productId,
-        movementId: movement.id,
-        newStock: product.currentStock
-      });
+      try {
+        const result = await this.addMovement(movementData);
+        results.push({
+          productId: item.productId,
+          movementId: result.movementId,
+          newStock: result.newStock
+        });
+      } catch (error) {
+        console.error('Ошибка списания товара', item.productId, error);
+        throw error;
+      }
     }
 
     return {
@@ -208,53 +199,30 @@ class StockService {
   /**
    * Получить историю движений с фильтрацией
    */
-  async getHistory(filter?: StockHistoryFilter): Promise<{
+  async getHistory(filter?: StockHistoryFilter): Promise<ApiResponse<{
     data: StockMovement[];
     total: number;
     limit: number;
     offset: number;
-  }> {
-    await this.delay(500);
+  }>> {
+    const params: Record<string, any> = { action: 'stock.history.get' };
+    if (filter?.productId) params.productId = filter.productId;
+    if (filter?.type) params.type = filter.type;
+    if (filter?.dateFrom) params.dateFrom = filter.dateFrom;
+    if (filter?.dateTo) params.dateTo = filter.dateTo;
+    if (filter?.limit) params.limit = filter.limit;
+    if (filter?.offset) params.offset = filter.offset;
 
-    let filtered = [...mockMovements];
-
-    if (filter?.productId) {
-      filtered = filtered.filter(m => m.productId === filter.productId);
-    }
-    if (filter?.type) {
-      filtered = filtered.filter(m => m.type === filter.type);
-    }
-    if (filter?.dateFrom) {
-      const from = new Date(filter.dateFrom).getTime();
-      filtered = filtered.filter(m => new Date(m.createdAt).getTime() >= from);
-    }
-    if (filter?.dateTo) {
-      const to = new Date(filter.dateTo).getTime();
-      filtered = filtered.filter(m => new Date(m.createdAt).getTime() <= to);
-    }
-
-    const limit = filter?.limit || 50;
-    const offset = filter?.offset || 0;
-    const paginated = filtered.slice(offset, offset + limit);
-
-    return {
-      data: paginated,
-      total: filtered.length,
-      limit,
-      offset
-    };
+    const response = await api.get('/index.php', { params });
+    return response.data.data;
   }
 
   /**
    * Получить историю по конкретному товару
    */
-  async getProductHistory(productId: number, limit = 20): Promise<StockMovement[]> {
+  async getProductHistory(productId: number, limit = 20): Promise< StockMovement[]> {
     const result = await this.getHistory({ productId, limit });
     return result.data;
-  }
-
-  private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
 

@@ -16,12 +16,26 @@
       </div>
       <div class="col-6 text-right">
         <q-btn
+          color="secondary"
+          label="Приход по фото"
+          icon="photo_camera"
+          @click="openAIDialog"
+          class="q-mr-sm"
+        />
+        <q-btn
           color="primary"
           label="Приход"
           icon="add"
           @click="openGlobalIncome"
           class="q-mr-sm"
         />
+        <q-btn
+    color="primary"
+    label="Накладная"
+    icon="assignment"
+    @click="openInvoiceDialog"
+  />
+
         <q-btn
           color="negative"
           label="Списание"
@@ -51,8 +65,15 @@
      <income-dialog
       v-model="incomeDialog"
       :product="selectedProduct"
+      :products="items"
       @ok="onIncome"
       @hide="selectedProduct = null"
+    />
+      <invoice-dialog
+      v-model="invoiceDialog"
+      :products="items"
+      @ok="onInvoiceSave"
+      @hide="invoiceDialog = false"
     />
 
     <write-off-dialog
@@ -82,6 +103,7 @@ import { ProductCategory } from 'src/types/product.types';
 import { StockMovement } from 'src/types/stokc.types';
 import StockTable from 'components/stock/StockTable.vue';
 import IncomeDialog from 'components/stock/IncomeDialog.vue';
+import InvoiceDialog from 'components/stock/InvoiceDialog.vue';
 import WriteOffDialog from 'components/stock/WriteOffDialog.vue';
 import HistoryDialog from 'components/stock/HistoryDialog.vue'; // создадим далее
 
@@ -92,7 +114,8 @@ export default defineComponent({
     StockTable,
     IncomeDialog,
     WriteOffDialog,
-    HistoryDialog
+    HistoryDialog,
+    InvoiceDialog
   },
 
   setup() {
@@ -105,6 +128,9 @@ export default defineComponent({
 
     // Диалоги
     const incomeDialog = ref(false);
+    const invoiceDialog = ref(false);
+
+
     const writeOffDialog = ref(false);
     const historyDialog = ref(false);
 
@@ -143,7 +169,7 @@ export default defineComponent({
     const loadStock = async () => {
       loading.value = true;
       try {
-        items.value = await stockService.getCurrentStock();
+        items.value = (await stockService.getCurrentStock()).data;
       } catch (error) {
         $q.notify({ type: 'negative', message: 'Ошибка загрузки остатков' });
       } finally {
@@ -197,6 +223,61 @@ export default defineComponent({
       }
     };
 
+    const openInvoiceDialog = () => {
+      invoiceDialog.value = true;
+    };
+
+    const onInvoiceSave = async (invoiceData: {
+      supplier: string;
+      number: string;
+      date: string;
+      items: Array<{
+        productId: number;
+        quantity: number;
+        price: number;
+      }>;
+    }) => {
+      loading.value = true;
+      console.log(invoiceData);
+
+      try {
+        // Отправляем каждую позицию отдельно
+        for (const item of invoiceData.items) {
+          const movementData = {
+            productId: item.productId,
+            type: 'income',
+            quantity: item.quantity,
+            price: item.price,
+            documentType: 'invoice',
+            documentId: parseInt(invoiceData.number) || 0, // если номер может быть числом
+            comment: `Накладная №${invoiceData.number} от ${invoiceData.date}, поставщик: ${invoiceData.supplier}`
+          };
+
+          console.log('Отправка движения:', movementData); // для отладки
+
+          await stockService.addMovement(movementData);
+        }
+
+        $q.notify({
+          type: 'positive',
+          message: 'Накладная успешно проведена'
+        });
+
+        // Обновляем список остатков
+        await loadStock();
+        invoiceDialog.value = false;
+
+      } catch (error: any) {
+        console.error('Ошибка при сохранении накладной:', error);
+        $q.notify({
+          type: 'negative',
+          message: error.message || 'Ошибка при сохранении накладной'
+        });
+      } finally {
+        loading.value = false;
+      }
+    };
+
     // Списание
     const openWriteOffDialog = (product: Product) => {
       selectedProduct.value = product;
@@ -225,7 +306,7 @@ export default defineComponent({
     const openHistoryDialog = async (product: Product) => {
       selectedProduct.value = product;
       try {
-        productHistory.value = await stockService.getProductHistory(product.id);
+        productHistory.value = (await stockService.getProductHistory(product.id));
         historyDialog.value = true;
       } catch (error) {
         $q.notify({ type: 'negative', message: 'Ошибка загрузки истории' });
@@ -257,7 +338,10 @@ export default defineComponent({
       openWriteOffDialog,
       openGlobalWriteOff,
       onWriteOff,
-      openHistoryDialog
+      openHistoryDialog,
+      invoiceDialog,
+      openInvoiceDialog,
+      onInvoiceSave
     };
   }
 });
