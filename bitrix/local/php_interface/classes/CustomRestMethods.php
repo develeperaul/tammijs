@@ -12,6 +12,7 @@ class CustomRestMethods
     const HL_ORDER_ITEMS = 3;            // ID HL-блока «OrderItems»
     const HL_RECIPES = 4;                // ID HL-блока «Recipes»
     const HL_RECIPE_INGREDIENTS = 5;     // ID HL-блока «RecipeIngredients»
+    const HL_SUPPLIERS = 6;     // ID HL-блока Suppliers
     const HL_STOCK_MOVEMENTS = 1;        // ID HL-блока «StockMovements» (если используется)
 
     /**
@@ -219,6 +220,7 @@ class CustomRestMethods
             'UF_COMMENT' => $data['comment'] ?? '',
             'UF_CREATED_BY' => $userId,
             'UF_CREATED_AT' => new DateTime(),
+            'UF_SUPPLIER_ID' => (int)($data['supplierId'] ?? 0),
         ];
 
         $movementId = StockMovementHelper::addMovement($fields);
@@ -1133,5 +1135,215 @@ class CustomRestMethods
                 ]);
             }
         }
+    }
+
+
+    /**
+     * Получить всех поставщиков
+     */
+    public static function getSuppliers($data = [])
+    {
+        \Bitrix\Main\Loader::includeModule('highloadblock');
+        
+        $hlBlockId = self::HL_SUPPLIERS; // ID HL-блока Suppliers
+        
+        $entity = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity(
+            \Bitrix\Highloadblock\HighloadBlockTable::getById($hlBlockId)->fetch()
+        );
+        $dataClass = $entity->getDataClass();
+        
+        $res = $dataClass::getList([
+            'select' => ['*'],
+            'order' => ['UF_NAME' => 'ASC']
+        ]);
+        
+        $result = [];
+        while ($row = $res->fetch()) {
+            $result[] = [
+                'id' => (int)$row['ID'],
+                'name' => $row['UF_NAME'],
+                'phone' => $row['UF_PHONE'] ?? '',
+                'email' => $row['UF_EMAIL'] ?? '',
+                'address' => $row['UF_ADDRESS'] ?? '',
+                'inn' => $row['UF_INN'] ?? '',
+                'kpp' => $row['UF_KPP'] ?? '',
+                'comment' => $row['UF_COMMENT'] ?? '',
+                'createdAt' => $row['UF_CREATED_AT'] instanceof DateTime 
+                    ? $row['UF_CREATED_AT']->format('c') 
+                    : $row['UF_CREATED_AT']
+            ];
+        }
+        
+        return $result;
+    }
+
+    /**
+     * Создать поставщика
+     */
+    public static function createSupplier($data = [])
+    {
+        \Bitrix\Main\Loader::includeModule('highloadblock');
+        
+        if (empty($data['name'])) {
+            throw new \Exception('Название поставщика обязательно');
+        }
+        
+        $hlBlockId = self::HL_SUPPLIERS;
+        
+        $entity = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity(
+            \Bitrix\Highloadblock\HighloadBlockTable::getById($hlBlockId)->fetch()
+        );
+        $dataClass = $entity->getDataClass();
+        
+        $fields = [
+            'UF_NAME' => $data['name'],
+            'UF_PHONE' => $data['phone'] ?? '',
+            'UF_EMAIL' => $data['email'] ?? '',
+            'UF_ADDRESS' => $data['address'] ?? '',
+            'UF_INN' => $data['inn'] ?? '',
+            'UF_KPP' => $data['kpp'] ?? '',
+            'UF_COMMENT' => $data['comment'] ?? '',
+            'UF_CREATED_AT' => new DateTime(),
+        ];
+        
+        $result = $dataClass::add($fields);
+        
+        if (!$result->isSuccess()) {
+            throw new \Exception(implode(', ', $result->getErrorMessages()));
+        }
+        
+        return ['id' => $result->getId()];
+    }
+
+    /**
+     * Обновить поставщика
+     */
+    public static function updateSupplier($data = [])
+    {
+        $id = (int)($data['id'] ?? 0);
+        if (!$id) {
+            throw new \Exception('ID поставщика не указан');
+        }
+        
+        \Bitrix\Main\Loader::includeModule('highloadblock');
+        
+        $hlBlockId = self::HL_SUPPLIERS;
+        
+        $entity = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity(
+            \Bitrix\Highloadblock\HighloadBlockTable::getById($hlBlockId)->fetch()
+        );
+        $dataClass = $entity->getDataClass();
+        
+        // Проверяем существование
+        $existing = $dataClass::getById($id)->fetch();
+        if (!$existing) {
+            throw new \Exception('Поставщик не найден');
+        }
+        
+        $fields = [];
+        if (!empty($data['name'])) $fields['UF_NAME'] = $data['name'];
+        if (isset($data['phone'])) $fields['UF_PHONE'] = $data['phone'];
+        if (isset($data['email'])) $fields['UF_EMAIL'] = $data['email'];
+        if (isset($data['address'])) $fields['UF_ADDRESS'] = $data['address'];
+        if (isset($data['inn'])) $fields['UF_INN'] = $data['inn'];
+        if (isset($data['kpp'])) $fields['UF_KPP'] = $data['kpp'];
+        if (isset($data['comment'])) $fields['UF_COMMENT'] = $data['comment'];
+        
+        if (empty($fields)) {
+            throw new \Exception('Нет данных для обновления');
+        }
+        
+        $result = $dataClass::update($id, $fields);
+        
+        if (!$result->isSuccess()) {
+            throw new \Exception(implode(', ', $result->getErrorMessages()));
+        }
+        
+        return ['success' => true];
+    }
+
+    /**
+     * Удалить поставщика
+     */
+    public static function deleteSupplier($data = [])
+    {
+        $id = (int)($data['id'] ?? 0);
+        if (!$id) {
+            throw new \Exception('ID поставщика не указан');
+        }
+        
+        \Bitrix\Main\Loader::includeModule('highloadblock');
+        
+        $hlBlockId = self::HL_SUPPLIERS;
+        
+        $entity = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity(
+            \Bitrix\Highloadblock\HighloadBlockTable::getById($hlBlockId)->fetch()
+        );
+        $dataClass = $entity->getDataClass();
+        
+        $result = $dataClass::delete($id);
+        
+        if (!$result->isSuccess()) {
+            throw new \Exception(implode(', ', $result->getErrorMessages()));
+        }
+        
+        return ['success' => true];
+    }
+
+    /**
+     * Получить историю цен поставщика по товару
+     */
+    public static function getSupplierPriceHistory($data = [])
+    {
+        $supplierId = (int)($data['supplierId'] ?? 0);
+        $productId = (int)($data['productId'] ?? 0);
+        
+        if (!$supplierId || !$productId) {
+            throw new \Exception('supplierId и productId обязательны');
+        }
+        
+        \Bitrix\Main\Loader::includeModule('highloadblock');
+        
+        // Получаем все движения товара от этого поставщика
+        $hlBlockId = self::HL_STOCK_MOVEMENTS;
+        
+        $entity = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity(
+            \Bitrix\Highloadblock\HighloadBlockTable::getById($hlBlockId)->fetch()
+        );
+        $dataClass = $entity->getDataClass();
+        
+        $res = $dataClass::getList([
+            'select' => ['*'],
+            'filter' => [
+                '=UF_PRODUCT_ID' => $productId,
+                '=UF_DOCUMENT_TYPE' => 'invoice',
+                '=UF_TYPE' => 'income'
+            ],
+            'order' => ['UF_CREATED_AT' => 'ASC']
+        ]);
+        
+        $history = [];
+        while ($row = $res->fetch()) {
+            // Здесь нужно будет связать с накладной и поставщиком
+            // Это сложная часть - нужно добавить поле UF_SUPPLIER_ID в движения
+            // Пока возвращаем пустой массив
+        }
+        
+        return $history;
+    }
+
+    /**
+     * Сравнить цены поставщиков на товар
+     */
+    public static function compareSuppliersPrices($data = [])
+    {
+        $productId = (int)($data['productId'] ?? 0);
+        if (!$productId) {
+            throw new \Exception('productId обязателен');
+        }
+        
+        // TODO: сложная логика сравнения цен
+        // Пока возвращаем заглушку
+        return [];
     }
 }

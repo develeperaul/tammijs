@@ -230,7 +230,7 @@ export default defineComponent({
     };
 
     const onInvoiceSave = async (invoiceData: {
-      supplier: string;
+      supplierId: number;
       number: string;
       date: string;
       items: Array<{
@@ -252,7 +252,8 @@ export default defineComponent({
             price: item.price,
             documentType: 'invoice',
             documentId: parseInt(invoiceData.number) || 0, // если номер может быть числом
-            comment: `Накладная №${invoiceData.number} от ${invoiceData.date}, поставщик: ${invoiceData.supplier}`
+            comment: `Накладная №${invoiceData.number} от ${invoiceData.date}, поставщик ID: ${invoiceData.supplierId}`,
+            supplierId: invoiceData.supplierId,
           };
 
           console.log('Отправка движения:', movementData); // для отладки

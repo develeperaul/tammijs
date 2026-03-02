@@ -84,6 +84,12 @@ $routes = [
     'product.create'         => ['method' => 'POST', 'callback' => ['CustomRestMethods', 'createProduct']],
     'product.delete'         => ['method' => 'DELETE', 'callback' => ['CustomRestMethods', 'deleteProduct']],
     'product.update' => ['method' => 'PUT', 'callback' => ['CustomRestMethods', 'updateProduct']],
+    'suppliers.get'           => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getSuppliers']],
+    'supplier.create'        => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'createSupplier']],
+    'supplier.update'        => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'updateSupplier']],
+    'supplier.delete'        => ['method' => 'DELETE', 'callback' => ['CustomRestMethods', 'deleteSupplier']],
+    'supplier.price.history' => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getSupplierPriceHistory']],
+    'supplier.compare.prices'=> ['method' => 'GET',    'callback' => ['CustomRestMethods', 'compareSuppliersPrices']],
 ];
 
 if (!isset($routes[$action])) {

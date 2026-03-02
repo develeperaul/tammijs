@@ -10,13 +10,59 @@
       <q-card-section>
         <!-- Шапка накладной -->
         <div class="row q-gutter-md q-mb-md">
-          <q-input
-            v-model="form.supplier"
-            label="Поставщик"
-            outlined
-            dense
-            class="col"
-          />
+          <!-- Выбор поставщика с возможностью добавления нового -->
+          <div class="col row items-center q-gutter-sm">
+            <q-select
+              v-model="form.supplierId"
+              :options="filteredSuppliers"
+              option-label="name"
+              option-value="id"
+              label="Поставщик *"
+              outlined
+              dense
+              class="col"
+              emit-value
+              map-options
+              clearable
+              use-input
+              :loading="loadingSuppliers"
+              @filter="filterSuppliers"
+              @update:model-value="onSupplierSelect"
+            >
+              <template v-slot:no-option>
+                <q-item>
+                  <q-item-section class="text-grey">
+                    <div v-if="loadingSuppliers" class="text-center">
+                      <q-spinner size="sm" /> Загрузка...
+                    </div>
+                    <div v-else class="text-center">
+                      <div>Нет поставщиков</div>
+                      <q-btn
+                        flat
+                        color="primary"
+                        label="+ Добавить нового"
+                        @click="openSupplierDialog"
+                        class="full-width q-mt-sm"
+                      />
+                    </div>
+                  </q-item-section>
+                </q-item>
+              </template>
+              <template v-slot:after>
+                <q-btn
+                  flat
+                  round
+                  dense
+                  icon="add"
+                  color="primary"
+                  @click="openSupplierDialog"
+                >
+                  <q-tooltip>Добавить поставщика</q-tooltip>
+                </q-btn>
+              </template>
+            </q-select>
+          </div>
+
           <q-input
             v-model="form.number"
             label="Номер накладной *"
@@ -169,23 +215,35 @@
         />
       </q-card-actions>
     </q-card>
+
+    <!-- Диалог добавления поставщика -->
+    <supplier-dialog
+      v-model="supplierDialog"
+      @ok="onSupplierCreated"
+      @hide="newSupplier = null"
+    />
   </q-dialog>
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed } from 'vue';
+import { defineComponent, ref, computed, onMounted } from 'vue';
 import { Product } from 'src/types/product.types';
+import { Supplier } from 'src/types/supplier.types';
+import supplierService from 'src/services/supplier.service';
+import SupplierDialog from 'components/suppliers/SupplierDialog.vue';
 
 interface InvoiceItem {
   id: number;
   productId: number | null;
   quantity: number;
   price: number;
-  unitType: 'unit' | 'baseUnit'; // в каких единицах введено количество
+  unitType: 'unit' | 'baseUnit';
 }
 
 export default defineComponent({
   name: 'InvoiceDialog',
+
+  components: { SupplierDialog },
 
   props: {
     products: {
@@ -198,10 +256,15 @@ export default defineComponent({
 
   setup(props, { emit }) {
     const dialog = ref<any>(null);
+    const supplierDialog = ref(false);
+    const newSupplier = ref<Supplier | null>(null);
+    const suppliers = ref<Supplier[]>([]);
+    const filteredSuppliers = ref<Supplier[]>([]);
+    const loadingSuppliers = ref(false);
     let nextId = 1;
 
     const form = ref({
-      supplier: '',
+      supplierId: null as number | null,
       number: '',
       date: new Date().toLocaleDateString('ru-RU'),
       items: [] as InvoiceItem[]
@@ -227,12 +290,62 @@ export default defineComponent({
     });
 
     const canSubmit = computed(() => {
+      if (!form.value.supplierId) return false;
       if (!form.value.number) return false;
       if (form.value.items.length === 0) return false;
       return form.value.items.every(item =>
         item.productId && Number(item.quantity) > 0
       );
     });
+
+    // Загрузка поставщиков
+    const loadSuppliers = async () => {
+      loadingSuppliers.value = true;
+      try {
+        const response = await supplierService.getSuppliers();
+        suppliers.value = response.data || [];
+        filteredSuppliers.value = [...suppliers.value];
+      } catch (error) {
+        console.error('Ошибка загрузки поставщиков:', error);
+      } finally {
+        loadingSuppliers.value = false;
+      }
+    };
+
+    const filterSuppliers = (val: string, update: any) => {
+      if (val === '') {
+        update(() => {
+          filteredSuppliers.value = [...suppliers.value];
+        });
+        return;
+      }
+
+      update(() => {
+        const needle = val.toLowerCase();
+        filteredSuppliers.value = suppliers.value.filter(
+          s => s.name.toLowerCase().includes(needle)
+        );
+      });
+    };
+
+    const onSupplierSelect = (supplierId: number | null) => {
+      form.value.supplierId = supplierId;
+    };
+
+    const openSupplierDialog = () => {
+      supplierDialog.value = true;
+    };
+
+    const onSupplierCreated = async (supplierData: any) => {
+      try {
+        const result = await supplierService.createSupplier(supplierData);
+        await loadSuppliers(); // Перезагружаем список поставщиков
+        form.value.supplierId = result.id;
+        supplierDialog.value = false;
+      } catch (error) {
+        console.error('Ошибка создания поставщика:', error);
+      }
+    };
 
     const getProductById = (id: number | null) => {
       if (!id) return null;
@@ -261,6 +374,7 @@ export default defineComponent({
     };
 
     const show = () => {
+      loadSuppliers(); // Загружаем при каждом открытии
       dialog.value?.show();
     };
 
@@ -274,7 +388,7 @@ export default defineComponent({
         productId: null,
         quantity: 1,
         price: 0,
-        unitType: 'baseUnit' // по умолчанию базовые единицы
+        unitType: 'baseUnit'
       });
     };
 
@@ -293,7 +407,6 @@ export default defineComponent({
       }
 
       item.productId = selectedProduct.id;
-      // Подставляем цену за базовую единицу по умолчанию
       item.price = (selectedProduct.costPrice || 0) / (selectedProduct.baseRatio || 1);
       item.unitType = 'baseUnit';
     };
@@ -305,13 +418,10 @@ export default defineComponent({
       const product = getProductById(item.productId);
       if (!product) return;
 
-      // Пересчитываем цену при смене единицы
       if (newUnitType === 'unit' && item.unitType === 'baseUnit') {
-        // Было в базовых единицах, стало в единицах хранения
         item.price = item.price * ratio;
         item.quantity = item.quantity / ratio;
       } else if (newUnitType === 'baseUnit' && item.unitType === 'unit') {
-        // Было в единицах хранения, стало в базовых единицах
         item.price = item.price / ratio;
         item.quantity = item.quantity * ratio;
       }
@@ -320,7 +430,6 @@ export default defineComponent({
     };
 
     const onSubmit = () => {
-      // Проверяем все позиции
       const invalidItems = form.value.items.filter(
         item => !item.productId || !item.quantity || Number(item.quantity) <= 0
       );
@@ -330,7 +439,6 @@ export default defineComponent({
         return;
       }
 
-      // Преобразуем все позиции в единицы хранения для отправки на бэкенд
       const items = form.value.items.map(item => {
         const ratio = getProductRatio(item.productId);
 
@@ -338,11 +446,9 @@ export default defineComponent({
         let priceInStorage: number;
 
         if (item.unitType === 'unit') {
-          // Уже в единицах хранения
           quantityInStorage = item.quantity;
           priceInStorage = item.price;
         } else {
-          // Из базовых единиц в единицы хранения
           quantityInStorage = item.quantity / ratio;
           priceInStorage = item.price * ratio;
         }
@@ -355,7 +461,7 @@ export default defineComponent({
       });
 
       const invoiceData = {
-        supplier: form.value.supplier || '',
+        supplierId: form.value.supplierId,
         number: form.value.number,
         date: form.value.date,
         items
@@ -368,7 +474,7 @@ export default defineComponent({
 
     const onDialogHide = () => {
       form.value = {
-        supplier: '',
+        supplierId: null,
         number: '',
         date: new Date().toLocaleDateString('ru-RU'),
         items: []
@@ -385,9 +491,18 @@ export default defineComponent({
       }).format(value);
     };
 
+    // Загружаем поставщиков при создании компонента
+    onMounted(() => {
+      loadSuppliers();
+    });
+
     return {
       dialog,
+      supplierDialog,
       form,
+      suppliers,
+      filteredSuppliers,
+      loadingSuppliers,
       columns,
       unitTypeOptions,
       totalAmount,
@@ -405,7 +520,10 @@ export default defineComponent({
       onUnitTypeChange,
       onSubmit,
       onDialogHide,
-      formatMoney
+      formatMoney,
+      filterSuppliers,
+      openSupplierDialog,
+      onSupplierCreated
     };
   }
 });
