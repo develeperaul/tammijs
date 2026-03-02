@@ -25,6 +25,8 @@
               outlined
               dense
               class="col-4"
+              emit-value
+              map-options
               :rules="[val => !!val || 'Выберите блюдо']"
             />
             <q-input
@@ -54,6 +56,8 @@
               outlined
               dense
               class="col-2"
+              emit-value
+              map-options
             />
             <q-input
               v-model.number="form.cookingTime"
@@ -73,6 +77,8 @@
             type="textarea"
             rows="3"
           />
+
+          <!-- Фото -->
           <div class="q-mb-md">
             <div class="text-subtitle2">Фото блюда</div>
             <q-file
@@ -91,32 +97,52 @@
               <img :src="photoPreview" style="max-width: 200px; max-height: 150px;" />
             </div>
           </div>
+
+          <!-- Состав рецепта -->
           <div class="text-subtitle2">Состав рецепта</div>
 
-          <div class="q-gutter-md">
+          <!-- Предварительный расчёт себестоимости -->
+          <div v-if="form.ingredients.length > 0" class="bg-grey-2 q-pa-sm rounded-borders q-mb-md">
+            <div class="row justify-between">
+              <span class="text-weight-bold">Предварительная себестоимость:</span>
+              <span class="text-weight-bold text-primary">{{ formatMoney(calculateTotalCost) }}</span>
+            </div>
+            <div class="text-caption text-grey-7">
+              за 1 порцию ({{ form.outputWeight }} {{ form.outputUnit }})
+            </div>
+          </div>
+
+          <div class="q-gutter-md" style="max-height: 400px; overflow-y: auto;">
             <recipe-ingredient-row
               v-for="(ing, idx) in form.ingredients"
               :key="idx"
               :ingredient="ing"
               :ingredients-list="ingredientsList"
-              @update:ingredient="updateIngredient(idx, $event)"
-              @remove="removeIngredient(idx)"
-            />
-
-            <q-btn
-              flat
-              color="primary"
-              icon="add"
-              label="Добавить ингредиент"
-              @click="addIngredient"
+              :index="idx"
+              @update:ingredient="updateIngredient"
+              @remove="removeIngredient"
             />
           </div>
+
+          <q-btn
+            flat
+            color="primary"
+            icon="add"
+            label="Добавить ингредиент"
+            @click="addIngredient"
+          />
         </q-form>
       </q-card-section>
 
       <q-card-actions align="right">
         <q-btn flat label="Отмена" color="negative" @click="onCancel" />
-        <q-btn flat label="Сохранить" color="positive" @click="onSubmit" />
+        <q-btn
+          flat
+          label="Сохранить"
+          color="positive"
+          @click="onSubmit"
+          :disable="!canSubmit"
+        />
       </q-card-actions>
     </q-card>
   </q-dialog>
@@ -154,8 +180,6 @@ export default defineComponent({
 
   emits: ['update:modelValue', 'ok', 'hide'],
 
-
-
   setup(props, { emit }) {
     const photoFile = ref<File | null>(null);
     const photoPreview = ref<string | null>(props.recipe?.photo || null);
@@ -185,7 +209,44 @@ export default defineComponent({
       photo: ''
     });
 
-    const unitOptions = ['г', 'кг', 'шт', 'л', 'мл', 'порция'].map(u => ({ label: u, value: u }));
+    const unitOptions = [
+      { label: 'грамм', value: 'г' },
+      { label: 'килограмм', value: 'кг' },
+      { label: 'штука', value: 'шт' },
+      { label: 'литр', value: 'л' },
+      { label: 'миллилитр', value: 'мл' },
+      { label: 'порция', value: 'порция' }
+    ];
+
+    const calculateTotalCost = computed(() => {
+      if (!form.value.ingredients.length) return 0;
+
+      return form.value.ingredients.reduce((total, ing) => {
+        if (!ing.ingredientId) return total;
+
+        const product = props.ingredientsList.find(p => p.id === ing.ingredientId);
+        if (!product) return total;
+
+        // Себестоимость за базовую единицу * количество
+        const costPerBaseUnit = product.costPrice / (product.baseRatio || 1);
+        return total + (costPerBaseUnit * ing.quantity);
+      }, 0);
+    });
+
+    const canSubmit = computed(() => {
+      // Проверяем основные поля
+      if (!form.value.productId) return false;
+      if (!form.value.name) return false;
+      if (!form.value.outputWeight || form.value.outputWeight <= 0) return false;
+      if (!form.value.outputUnit) return false;
+
+      // Проверяем ингредиенты
+      if (form.value.ingredients.length === 0) return false;
+
+      return form.value.ingredients.every(ing =>
+        ing.ingredientId && ing.quantity > 0 && ing.unit
+      );
+    });
 
     // Заполнение формы при редактировании
     watch(() => props.recipe, (val) => {
@@ -196,14 +257,16 @@ export default defineComponent({
           outputWeight: val.outputWeight,
           outputUnit: val.outputUnit,
           cookingTime: val.cookingTime,
-          instructions: val.instructions,
+          instructions: val.instructions || '',
           ingredients: val.ingredients.map(ing => ({
             ingredientId: ing.ingredientId,
             quantity: ing.quantity,
             unit: ing.unit,
             isOptional: ing.isOptional
-          }))
+          })),
+          photo: val.photo || ''
         };
+        photoPreview.value = val.photo || null;
       } else {
         form.value = {
           productId: 0,
@@ -212,8 +275,10 @@ export default defineComponent({
           outputUnit: 'г',
           cookingTime: undefined,
           instructions: '',
-          ingredients: []
+          ingredients: [],
+          photo: ''
         };
+        photoPreview.value = null;
       }
     }, { immediate: true });
 
@@ -231,13 +296,24 @@ export default defineComponent({
     };
 
     const updateIngredient = (index: number, updatedIng: Partial<RecipeIngredient>) => {
+      // Обновляем ингредиент
       form.value.ingredients[index] = {
         ...form.value.ingredients[index],
         ...updatedIng
       };
+
+      // Если изменился ingredientId, обновляем единицу измерения по умолчанию
+      if (updatedIng.ingredientId) {
+        const product = props.ingredientsList.find(p => p.id === updatedIng.ingredientId);
+        if (product) {
+          // Устанавливаем базовую единицу товара как единицу по умолчанию
+          form.value.ingredients[index].unit = product.baseUnit || 'г';
+        }
+      }
     };
 
     const onSubmit = () => {
+      if (!canSubmit.value) return;
       emit('ok', form.value);
       emit('update:modelValue', false);
     };
@@ -246,10 +322,20 @@ export default defineComponent({
       emit('update:modelValue', false);
     };
 
+    const formatMoney = (value: number): string => {
+      return new Intl.NumberFormat('ru-RU', {
+        style: 'currency',
+        currency: 'RUB',
+        minimumFractionDigits: 2
+      }).format(value);
+    };
+
     return {
       isEdit,
       form,
       unitOptions,
+      calculateTotalCost,
+      canSubmit,
       addIngredient,
       removeIngredient,
       updateIngredient,
@@ -257,7 +343,8 @@ export default defineComponent({
       onCancel,
       photoFile,
       photoPreview,
-      onFileSelected
+      onFileSelected,
+      formatMoney
     };
   }
 });

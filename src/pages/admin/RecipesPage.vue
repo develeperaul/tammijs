@@ -57,8 +57,13 @@ export default defineComponent({
     const loadRecipes = async () => {
       loading.value = true;
       try {
-        recipes.value = await recipeService.getRecipes();
+        recipes.value = (await recipeService.getRecipes()).data;
+
+        console.log(recipes.value);
+
       } catch (error) {
+        console.log(error);
+
         $q.notify({ type: 'negative', message: 'Ошибка загрузки рецептов' });
       } finally {
         loading.value = false;
@@ -67,7 +72,7 @@ export default defineComponent({
 
     const loadProducts = async () => {
       try {
-        const all = await productService.getProducts();
+        const all = (await productService.getProducts()).data;
         finishedProducts.value = all.filter(p => p.type === 'finished');
         ingredientsList.value = all.filter(p => p.type === 'ingredient');
       } catch (error) {

@@ -75,6 +75,10 @@
                       <q-item-label>{{ scope.opt.name }}</q-item-label>
                       <q-item-label caption>
                         Остаток: {{ scope.opt.currentStock }} {{ scope.opt.unit }}
+                        <br>
+                        <span class="text-grey-7">
+                          1 {{ scope.opt.unit }} = {{ scope.opt.baseRatio }} {{ scope.opt.baseUnit }}
+                        </span>
                       </q-item-label>
                     </q-item-section>
                   </q-item>
@@ -83,29 +87,45 @@
             </q-td>
           </template>
 
-          <!-- Количество -->
+          <!-- Количество с выбором единицы -->
           <template v-slot:body-cell-quantity="props">
             <q-td :props="props">
-              <q-input
-                v-model.number="props.row.quantity"
-                type="number"
-                dense
-                style="width: 100px"
-                :rules="[val => val > 0 || '>0']"
-              />
+              <div class="row items-center no-wrap">
+                <q-input
+                  v-model.number="props.row.quantity"
+                  type="number"
+                  dense
+                  style="width: 80px"
+                  step="0.001"
+                  :rules="[val => val > 0 || '>0']"
+                />
+                <q-select
+                  v-model="props.row.unitType"
+                  :options="unitTypeOptions"
+                  dense
+                  options-dense
+                  emit-value
+                  map-options
+                  style="min-width: 60px; margin-left: 4px;"
+                  @update:model-value="(val) => onUnitTypeChange(props.row, val)"
+                />
+              </div>
             </q-td>
           </template>
 
-          <!-- Цена -->
+          <!-- Цена (за выбранную единицу) -->
           <template v-slot:body-cell-price="props">
             <q-td :props="props">
-              <q-input
-                v-model.number="props.row.price"
-                type="number"
-                dense
-                style="width: 120px"
-                step="0.01"
-              />
+              <div class="row items-center">
+                <q-input
+                  v-model.number="props.row.price"
+                  type="number"
+                  dense
+                  style="width: 100px"
+                  step="0.01"
+                />
+                <span class="q-ml-xs">₽/{{ getPriceUnitLabel(props.row) }}</span>
+              </div>
             </q-td>
           </template>
 
@@ -161,6 +181,7 @@ interface InvoiceItem {
   productId: number | null;
   quantity: number;
   price: number;
+  unitType: 'unit' | 'baseUnit'; // в каких единицах введено количество
 }
 
 export default defineComponent({
@@ -186,6 +207,11 @@ export default defineComponent({
       items: [] as InvoiceItem[]
     });
 
+    const unitTypeOptions = [
+      { label: 'ед.хр', value: 'unit' },
+      { label: 'баз.ед', value: 'baseUnit' }
+    ];
+
     const columns = [
       { name: 'product', label: 'Товар', align: 'left' },
       { name: 'quantity', label: 'Кол-во', align: 'center' },
@@ -208,10 +234,30 @@ export default defineComponent({
       );
     });
 
-    // Вспомогательная функция для получения продукта по ID
     const getProductById = (id: number | null) => {
       if (!id) return null;
       return props.products.find(p => p.id === id) || null;
+    };
+
+    const getProductRatio = (productId: number | null): number => {
+      const product = getProductById(productId);
+      return product?.baseRatio || 1;
+    };
+
+    const getProductUnit = (productId: number | null): string => {
+      const product = getProductById(productId);
+      return product?.unit || '';
+    };
+
+    const getProductBaseUnit = (productId: number | null): string => {
+      const product = getProductById(productId);
+      return product?.baseUnit || '';
+    };
+
+    const getPriceUnitLabel = (item: InvoiceItem): string => {
+      const product = getProductById(item.productId);
+      if (!product) return '';
+      return item.unitType === 'unit' ? product.unit : product.baseUnit;
     };
 
     const show = () => {
@@ -227,7 +273,8 @@ export default defineComponent({
         id: nextId++,
         productId: null,
         quantity: 1,
-        price: 0
+        price: 0,
+        unitType: 'baseUnit' // по умолчанию базовые единицы
       });
     };
 
@@ -246,7 +293,30 @@ export default defineComponent({
       }
 
       item.productId = selectedProduct.id;
-      item.price = selectedProduct.costPrice || 0;
+      // Подставляем цену за базовую единицу по умолчанию
+      item.price = (selectedProduct.costPrice || 0) / (selectedProduct.baseRatio || 1);
+      item.unitType = 'baseUnit';
+    };
+
+    const onUnitTypeChange = (item: InvoiceItem, newUnitType: 'unit' | 'baseUnit') => {
+      if (!item.productId) return;
+
+      const ratio = getProductRatio(item.productId);
+      const product = getProductById(item.productId);
+      if (!product) return;
+
+      // Пересчитываем цену при смене единицы
+      if (newUnitType === 'unit' && item.unitType === 'baseUnit') {
+        // Было в базовых единицах, стало в единицах хранения
+        item.price = item.price * ratio;
+        item.quantity = item.quantity / ratio;
+      } else if (newUnitType === 'baseUnit' && item.unitType === 'unit') {
+        // Было в единицах хранения, стало в базовых единицах
+        item.price = item.price / ratio;
+        item.quantity = item.quantity * ratio;
+      }
+
+      item.unitType = newUnitType;
     };
 
     const onSubmit = () => {
@@ -260,18 +330,29 @@ export default defineComponent({
         return;
       }
 
-      // Формируем данные для отправки
-      const items = form.value.items.map(item => ({
-        productId: Number(item.productId),
-        quantity: Number(item.quantity),
-        price: Number(item.price || 0)
-      }));
+      // Преобразуем все позиции в единицы хранения для отправки на бэкенд
+      const items = form.value.items.map(item => {
+        const ratio = getProductRatio(item.productId);
 
-      // Финальная проверка на NaN
-      if (items.some(item => isNaN(item.productId) || isNaN(item.quantity) || isNaN(item.price))) {
-        console.error('Обнаружен NaN в данных');
-        return;
-      }
+        let quantityInStorage: number;
+        let priceInStorage: number;
+
+        if (item.unitType === 'unit') {
+          // Уже в единицах хранения
+          quantityInStorage = item.quantity;
+          priceInStorage = item.price;
+        } else {
+          // Из базовых единиц в единицы хранения
+          quantityInStorage = item.quantity / ratio;
+          priceInStorage = item.price * ratio;
+        }
+
+        return {
+          productId: Number(item.productId),
+          quantity: quantityInStorage,
+          price: priceInStorage
+        };
+      });
 
       const invoiceData = {
         supplier: form.value.supplier || '',
@@ -308,14 +389,20 @@ export default defineComponent({
       dialog,
       form,
       columns,
+      unitTypeOptions,
       totalAmount,
       canSubmit,
       getProductById,
+      getProductRatio,
+      getProductUnit,
+      getProductBaseUnit,
+      getPriceUnitLabel,
       show,
       hide,
       addItem,
       removeItem,
       onProductSelect,
+      onUnitTypeChange,
       onSubmit,
       onDialogHide,
       formatMoney

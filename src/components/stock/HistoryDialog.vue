@@ -14,7 +14,8 @@
 
       <q-card-section>
         <div v-if="!movements || movements.length === 0" class="text-center q-pa-md text-grey-7">
-          Нет движений по данному товару
+          <q-icon name="history" size="48px" color="grey-4" />
+          <div class="q-mt-sm">Нет движений по данному товару</div>
         </div>
         <q-table
           v-else

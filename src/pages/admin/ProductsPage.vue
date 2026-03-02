@@ -24,8 +24,21 @@
       </div>
     </div>
 
+    <!-- Вкладки для разделения по типам -->
+    <q-tabs
+      v-model="activeTab"
+      dense
+      class="text-primary q-mb-md"
+      @update:model-value="onTabChange"
+    >
+      <q-tab name="all" label="Все" />
+      <q-tab name="ingredient" label="Ингредиенты" />
+      <q-tab name="finished" label="Готовые блюда" />
+      <q-tab name="semi-finished" label="Полуфабрикаты" />
+    </q-tabs>
+
     <!-- Таблица товаров -->
-     <product-table
+    <product-table
       v-model:search="filters.search"
       v-model:type="filters.type"
       v-model:category="filters.categoryId"
@@ -51,7 +64,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed, onMounted } from 'vue';
+import { defineComponent, ref, computed, onMounted, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import productService from 'src/services/product.service';
 import { Product, ProductFilter, ProductCategory } from 'src/types/product.types';
@@ -75,6 +88,7 @@ export default defineComponent({
     const loading = ref(false);
     const selectedProduct = ref<Product | null>(null);
     const productDialog = ref<any>(null);
+    const activeTab = ref<string>('all');
 
     // Фильтры
     const filters = ref<ProductFilter>({
@@ -83,6 +97,15 @@ export default defineComponent({
       categoryId: undefined,
       lowStock: false
     });
+
+    // Обновление фильтра типа при смене вкладки
+    const onTabChange = (tab: string) => {
+      if (tab === 'all') {
+        filters.value.type = undefined;
+      } else {
+        filters.value.type = tab as any;
+      }
+    };
 
     // Отфильтрованные товары
     const filteredProducts = computed(() => {
@@ -120,16 +143,14 @@ export default defineComponent({
     const loadProducts = async () => {
       loading.value = true;
       try {
-        products.value = (await productService.getProducts()).data;
-
-
+        const response = await productService.getProducts();
+        products.value = response.data;
       } catch (error) {
         $q.notify({
           type: 'negative',
           message: 'Ошибка загрузки товаров'
         });
       } finally {
-
         loading.value = false;
       }
     };
@@ -165,24 +186,15 @@ export default defineComponent({
         if (selectedProduct.value) {
           // Обновление
           await productService.updateProduct(selectedProduct.value.id, formData);
-          $q.notify({
-            type: 'positive',
-            message: 'Товар обновлен'
-          });
+          $q.notify({ type: 'positive', message: 'Товар обновлен' });
         } else {
           // Создание
           await productService.createProduct(formData);
-          $q.notify({
-            type: 'positive',
-            message: 'Товар добавлен'
-          });
+          $q.notify({ type: 'positive', message: 'Товар добавлен' });
         }
         await loadProducts();
       } catch (error) {
-        $q.notify({
-          type: 'negative',
-          message: 'Ошибка сохранения'
-        });
+        $q.notify({ type: 'negative', message: 'Ошибка сохранения' });
       }
     };
 
@@ -197,23 +209,13 @@ export default defineComponent({
         try {
           await productService.deleteProduct(product.id);
           await loadProducts();
-          $q.notify({
-            type: 'positive',
-            message: 'Товар удален'
-          });
+          $q.notify({ type: 'positive', message: 'Товар удален' });
         } catch (error) {
-          $q.notify({
-            type: 'negative',
-            message: 'Ошибка удаления'
-          });
+          $q.notify({ type: 'negative', message: 'Ошибка удаления' });
         }
       });
     };
 
-    onMounted(() => {
-      loadProducts();
-      loadCategories();
-    });
     const resetFilters = () => {
       filters.value = {
         search: '',
@@ -221,7 +223,14 @@ export default defineComponent({
         categoryId: undefined,
         lowStock: false
       };
+      activeTab.value = 'all';
     };
+
+    onMounted(() => {
+      loadProducts();
+      loadCategories();
+    });
+
     return {
       products,
       categories,
@@ -231,6 +240,8 @@ export default defineComponent({
       filters,
       filteredProducts,
       lowStockCount,
+      activeTab,
+      onTabChange,
       loadProducts,
       openCreateDialog,
       openEditDialog,

@@ -65,6 +65,7 @@
       flat
       bordered
     >
+      <!-- Тип товара -->
       <template v-slot:body-cell-type="props">
         <q-td :props="props">
           <q-chip :color="getTypeColor(props.value)" text-color="white" dense size="sm">
@@ -73,9 +74,20 @@
         </q-td>
       </template>
 
+      <!-- Единицы измерения -->
+      <template v-slot:body-cell-unit="props">
+        <q-td :props="props">
+          <div>{{ props.row.unitLabel || props.row.unit }}</div>
+          <div class="text-caption text-grey-7">
+            база: {{ props.row.baseUnitLabel || props.row.baseUnit }} (1:{{ props.row.baseRatio }})
+          </div>
+        </q-td>
+      </template>
+
+      <!-- Остаток -->
       <template v-slot:body-cell-stock="props">
         <q-td :props="props">
-          <div class="row flex-center">
+          <div class="row items-center">
             <q-badge :color="getStockColor(props.row)" class="q-mr-sm">
               {{ props.row.currentStock }} {{ props.row.unit }}
             </q-badge>
@@ -88,15 +100,21 @@
               <q-tooltip>Критический остаток</q-tooltip>
             </q-icon>
           </div>
+          <div class="text-caption text-grey-7">
+            {{ (props.row.currentStock * (props.row.baseRatio || 1)).toFixed(0) }} {{ props.row.baseUnit }}
+          </div>
         </q-td>
       </template>
 
-      <template v-slot:body-cell-price="props">
+      <!-- Цены -->
+      <template v-slot:body-cell-prices="props">
         <q-td :props="props">
-          {{ formatMoney(props.row.sellingPrice) }}
+          <div>закуп: {{ formatMoney(props.row.costPrice) }}</div>
+          <div>продажа: {{ formatMoney(props.row.sellingPrice) }}</div>
         </q-td>
       </template>
 
+      <!-- Действия -->
       <template v-slot:body-cell-actions="props">
         <q-td :props="props">
           <q-btn flat round dense icon="edit" size="sm" @click="$emit('edit', props.row)">
@@ -123,9 +141,9 @@ export default defineComponent({
     categories: { type: Array as PropType<ProductCategory[]>, default: () => [] },
     loading: { type: Boolean, default: false },
     search: { type: String, default: '' },
-    type: { type: String, default: null },        // переименовано
-    category: { type: Number, default: null },     // переименовано
-    lowStock: { type: Boolean, default: false }    // переименовано
+    type: { type: String, default: null },
+    category: { type: Number, default: null },
+    lowStock: { type: Boolean, default: false }
   },
 
   emits: [
@@ -139,7 +157,7 @@ export default defineComponent({
     'refresh'
   ],
 
-  setup(props) {
+  setup() {
     const typeOptions = [
       { label: 'Ингредиент', value: 'ingredient' },
       { label: 'Готовый', value: 'finished' },
@@ -149,19 +167,28 @@ export default defineComponent({
     const columns = [
       { name: 'name', label: 'Название', field: 'name', align: 'left', sortable: true },
       { name: 'type', label: 'Тип', field: 'type', align: 'center' },
-      { name: 'stock', label: 'Остаток', field: 'currentStock', align: 'center', sortable: true },
+      { name: 'unit', label: 'Единицы', field: 'unit', align: 'left' },
+      { name: 'stock', label: 'Остаток', field: 'currentStock', align: 'left', sortable: true },
       { name: 'minStock', label: 'Мин.', field: 'minStock', align: 'center' },
-      { name: 'price', label: 'Цена', field: 'sellingPrice', align: 'right', sortable: true },
-      { name: 'actions', label: 'Действия', field: 'actions', align: 'center' }
+      { name: 'prices', label: 'Цены', field: 'sellingPrice', align: 'right' },
+      { name: 'actions', label: 'Действия', align: 'center' }
     ];
 
     const getTypeColor = (type: string): string => {
-      const colors: Record<string, string> = { ingredient: 'blue', finished: 'green', 'semi-finished': 'orange' };
+      const colors: Record<string, string> = {
+        ingredient: 'blue',
+        finished: 'green',
+        'semi-finished': 'orange'
+      };
       return colors[type] || 'grey';
     };
 
     const getTypeLabel = (type: string): string => {
-      const labels: Record<string, string> = { ingredient: 'Ингредиент', finished: 'Готовый', 'semi-finished': 'Полуфабрикат' };
+      const labels: Record<string, string> = {
+        ingredient: 'Ингредиент',
+        finished: 'Готовый',
+        'semi-finished': 'Полуфабрикат'
+      };
       return labels[type] || type;
     };
 
@@ -172,10 +199,21 @@ export default defineComponent({
     };
 
     const formatMoney = (value: number): string => {
-      return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 0 }).format(value);
+      return new Intl.NumberFormat('ru-RU', {
+        style: 'currency',
+        currency: 'RUB',
+        minimumFractionDigits: 0
+      }).format(value);
     };
 
-    return { typeOptions, columns, getTypeColor, getTypeLabel, getStockColor, formatMoney };
+    return {
+      typeOptions,
+      columns,
+      getTypeColor,
+      getTypeLabel,
+      getStockColor,
+      formatMoney
+    };
   }
 });
 </script>

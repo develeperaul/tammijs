@@ -207,6 +207,8 @@ export default defineComponent({
     };
 
     const onIncome = async (data: any) => {
+      console.log(data);
+
       try {
         const result = await stockService.addMovement({
           productId: data.productId,

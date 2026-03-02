@@ -1,6 +1,8 @@
+import { api } from 'boot/axios';
 import { Recipe, CreateRecipeDto, RecipeIngredient } from 'src/types/recipe.types';
 import productService from './product.service';
 import { Product } from 'src/types/product.types';
+import { ApiResponse } from 'src/types/api.types';
 
 // Мок-данные продуктов (ингредиентов) – используем те же, что и в product.service
 // Для простоты скопируем нужные или импортируем, но избежим циклических зависимостей.
@@ -54,6 +56,8 @@ let mockRecipes: Recipe[] = [
   }
 ];
 
+
+
 class RecipeService {
   private static instance: RecipeService;
 
@@ -67,161 +71,74 @@ class RecipeService {
   }
 
   /**
-   * Получить все рецепты
+   * Получить список рецептов
    */
-  async getRecipes(): Promise<Recipe[]> {
-    await this.delay(300);
-    return JSON.parse(JSON.stringify(mockRecipes)); // возвращаем копию
+  async getRecipes(filter?: RecipeFilter): Promise<ApiResponse<Recipe[]>> {
+    const params: Record<string, any> = { action: 'recipes.get' };
+    if (filter?.productId) params.productId = filter.productId;
+    if (filter?.search) params.search = filter.search;
+
+    const response = await api.get('/index.php', { params });
+    console.log(response);
+
+    return response.data;
   }
 
   /**
-   * Получить рецепт по ID готового блюда
+   * Получить рецепт по ID товара
    */
   async getRecipeByProductId(productId: number): Promise<Recipe | null> {
-    await this.delay(200);
-    const recipe = mockRecipes.find(r => r.productId === productId);
-    return recipe ? JSON.parse(JSON.stringify(recipe)) : null;
+    const recipes = await this.getRecipes({ productId });
+    return recipes[0] || null;
   }
 
   /**
-   * Получить рецепт по его ID
+   * Получить рецепт по ID
    */
   async getRecipeById(id: number): Promise<Recipe | null> {
-    await this.delay(200);
-    const recipe = mockRecipes.find(r => r.id === id);
-    return recipe ? JSON.parse(JSON.stringify(recipe)) : null;
+    const params = { action: 'recipes.get', id };
+    const response = await api.get('/index.php', { params });
+    return response.data[0] || null;
   }
 
   /**
-   * Создать новый рецепт
+   * Создать рецепт
    */
-  async createRecipe(data: CreateRecipeDto): Promise<Recipe> {
-    await this.delay(600);
-    // Проверим, что товар с таким productId существует и он типа finished
-    const products = await getMockProducts();
-    const product = products.find(p => p.id === data.productId);
-    if (!product) throw new Error('Товар не найден');
-    if (product.type !== 'finished') throw new Error('Рецепт можно создавать только для готовых товаров');
-
-    const newId = mockRecipes.length + 1;
-    const newRecipe: Recipe = {
-      id: newId,
-      productId: data.productId,
-      productName: product.name,
-      name: data.name,
-      outputWeight: data.outputWeight,
-      outputUnit: data.outputUnit,
-      cookingTime: data.cookingTime,
-      instructions: data.instructions,
-      ingredients: data.ingredients.map((ing, idx) => ({
-        id: idx + 1,
-        recipeId: newId,
-        ingredientId: ing.ingredientId,
-        quantity: ing.quantity,
-        unit: ing.unit,
-        isOptional: ing.isOptional
-      })),
-      createdAt: new Date().toISOString()
-    };
-
-    mockRecipes.push(newRecipe);
-    return newRecipe;
+  async createRecipe(data: CreateRecipeDto): Promise<{ recipeId: number }> {
+    const response = await api.post('/index.php', data, {
+      params: { action: 'recipe.create' }
+    });
+    return response.data;
   }
 
   /**
    * Обновить рецепт
    */
-  async updateRecipe(id: number, data: Partial<CreateRecipeDto>): Promise<Recipe> {
-    await this.delay(600);
-    const index = mockRecipes.findIndex(r => r.id === id);
-    if (index === -1) throw new Error('Рецепт не найден');
-
-    const products = await getMockProducts();
-    if (data.productId) {
-      const product = products.find(p => p.id === data.productId);
-      if (!product) throw new Error('Товар не найден');
-      mockRecipes[index].productName = product.name;
-    }
-
-    mockRecipes[index] = {
-      ...mockRecipes[index],
-      ...data,
-      productId: data.productId ?? mockRecipes[index].productId,
-      name: data.name ?? mockRecipes[index].name,
-      outputWeight: data.outputWeight ?? mockRecipes[index].outputWeight,
-      outputUnit: data.outputUnit ?? mockRecipes[index].outputUnit,
-      cookingTime: data.cookingTime ?? mockRecipes[index].cookingTime,
-      instructions: data.instructions ?? mockRecipes[index].instructions,
-      updatedAt: new Date().toISOString()
-    };
-
-    // Если переданы ингредиенты, заменяем их (с генерацией id)
-    if (data.ingredients) {
-      mockRecipes[index].ingredients = data.ingredients.map((ing, idx) => ({
-        id: idx + 1,
-        recipeId: id,
-        ingredientId: ing.ingredientId,
-        quantity: ing.quantity,
-        unit: ing.unit,
-        isOptional: ing.isOptional
-      }));
-    }
-
-    return mockRecipes[index];
+  async updateRecipe(id: number, data: Partial<CreateRecipeDto>): Promise<{ success: boolean }> {
+    const response = await api.post('/index.php', data, {
+      params: { action: 'recipe.update', id }
+    });
+    return response.data;
   }
 
   /**
    * Удалить рецепт
    */
-  async deleteRecipe(id: number): Promise<boolean> {
-    await this.delay(400);
-    const index = mockRecipes.findIndex(r => r.id === id);
-    if (index === -1) return false;
-    mockRecipes.splice(index, 1);
-    return true;
+  async deleteRecipe(id: number): Promise<{ success: boolean }> {
+    const response = await api.delete('/index.php', {
+      params: { action: 'recipe.delete', id }
+    });
+    return response.data;
   }
 
   /**
-   * Рассчитать себестоимость блюда по id рецепта на основе текущих цен ингредиентов
+   * Рассчитать себестоимость
    */
-  async calculateCost(recipeId: number): Promise<number> {
-    const recipe = await this.getRecipeById(recipeId);
-    if (!recipe) throw new Error('Рецепт не найден');
-
-    const products = await getMockProducts();
-    let total = 0;
-    for (const ing of recipe.ingredients) {
-      const product = products.find(p => p.id === ing.ingredientId);
-      if (!product) continue;
-      // себестоимость ингредиента за единицу * количество в нужных единицах
-      // требуется нормализация единиц, здесь для простоты предполагаем, что unit совпадает
-      total += (product.costPrice || 0) * ing.quantity;
-    }
-    return total;
-  }
-
-  /**
-   * Списать ингредиенты для данного рецепта (используется при продаже)
-   */
-  async consumeIngredients(recipeId: number, quantity: number = 1): Promise<void> {
-    const recipe = await this.getRecipeById(recipeId);
-    if (!recipe) throw new Error('Рецепт не найден');
-
-    // Подготовим массив для списания
-    const items = recipe.ingredients.map(ing => ({
-      productId: ing.ingredientId,
-      quantity: ing.quantity * quantity,
-      reason: `Списание по рецепту ${recipe.name}`
-    }));
-
-    // Вызовем stockService.writeOff (нужно импортировать)
-    // Но чтобы избежать циклической зависимости, можно передать через callback или импортировать напрямую
-    const stockService = (await import('./stock.service')).default;
-    await stockService.writeOff({ items, reason: `Продажа блюда ${recipe.name}` });
-  }
-
-  private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+  async calculateCost(recipeId: number): Promise<{ cost: number }> {
+    const response = await api.get('/index.php', {
+      params: { action: 'recipe.calculate.cost', recipeId }
+    });
+    return response.data;
   }
 }
 

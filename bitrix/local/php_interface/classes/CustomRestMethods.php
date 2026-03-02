@@ -35,6 +35,8 @@ class CustomRestMethods
             'ID', 'NAME', 'IBLOCK_SECTION_ID', 'CODE', 'ACTIVE',
             'PROPERTY_TYPE',
             'PROPERTY_UNIT',
+            'PROPERTY_BASE_UNIT',
+            'PROPERTY_BASE_RATIO',
             'PROPERTY_COST_PRICE',
             'PROPERTY_SELLING_PRICE',
             'PROPERTY_CURRENT_STOCK',
@@ -45,21 +47,61 @@ class CustomRestMethods
         $result = [];
         $res = \CIBlockElement::GetList(['SORT' => 'ASC'], $filter, false, false, $select);
         while ($fields = $res->GetNext()) {
+            // Получаем XML_ID по значению типа
+            $typeXmlId = null;
+            if (!empty($fields['PROPERTY_TYPE_VALUE'])) {
+                // Для свойств инфоблоков используем CIBlockPropertyEnum!
+                $enum = \CIBlockPropertyEnum::GetList(
+                    [],
+                    [
+                        'IBLOCK_ID' => self::IBLOCK_PRODUCTS,
+                        'CODE' => 'TYPE',
+                        'VALUE' => $fields['PROPERTY_TYPE_VALUE']
+                    ]
+                )->Fetch();
+                
+                $typeXmlId = $enum ? $enum['XML_ID'] : null;
+            }
+            // Получаем XML_ID для единицы хранения
+            $unitXmlId = null;
+            if (!empty($fields['PROPERTY_UNIT_VALUE'])) {
+                $enum = \CIBlockPropertyEnum::GetList([], [
+                    'USER_FIELD_NAME' => 'UNIT',
+                    'VALUE' => $fields['PROPERTY_UNIT_VALUE']
+                ])->Fetch();
+                $unitXmlId = $enum ? $enum['XML_ID'] : null;
+            }
+
+            // Получаем XML_ID для базовой единицы
+            $baseUnitXmlId = null;
+            if (!empty($fields['PROPERTY_BASE_UNIT_VALUE'])) {
+                $enum = \CIBlockPropertyEnum::GetList([], [
+                    'USER_FIELD_NAME' => 'BASE_UNIT',
+                    'VALUE' => $fields['PROPERTY_BASE_UNIT_VALUE']
+                ])->Fetch();
+                $baseUnitXmlId = $enum ? $enum['XML_ID'] : null;
+            }
+
             $result[] = [
                 'id'            => (int)$fields['ID'],
                 'name'          => $fields['NAME'],
                 'categoryId'    => $fields['IBLOCK_SECTION_ID'] ? (int)$fields['IBLOCK_SECTION_ID'] : null,
-                'type'          => $fields['PROPERTY_TYPE_VALUE'],
+                'type'          => $typeXmlId,
+                'typeLabel'     => $fields['PROPERTY_TYPE_VALUE'],
                 'code'          => $fields['CODE'],
                 'active'        => ($fields['ACTIVE'] === 'Y'),
-                'unit'          => $fields['PROPERTY_UNIT_VALUE'],
-                'costPrice'    => (float)$fields['PROPERTY_COST_PRICE_VALUE'],
-                'sellingPrice' => (float)$fields['PROPERTY_SELLING_PRICE_VALUE'],
-                'currentStock' => (float)$fields['PROPERTY_CURRENT_STOCK_VALUE'],
-                'minStock'     => (float)$fields['PROPERTY_MIN_STOCK_VALUE'],
+                'unit'          => $unitXmlId,
+                'unitLabel'     => $fields['PROPERTY_UNIT_VALUE'],
+                'baseUnit'      => $baseUnitXmlId,
+                'baseUnitLabel' => $fields['PROPERTY_BASE_UNIT_VALUE'],
+                'baseRatio'     => (float)$fields['PROPERTY_BASE_RATIO_VALUE'],
+                'costPrice'     => (float)$fields['PROPERTY_COST_PRICE_VALUE'],
+                'sellingPrice'  => (float)$fields['PROPERTY_SELLING_PRICE_VALUE'],
+                'currentStock'  => (float)$fields['PROPERTY_CURRENT_STOCK_VALUE'],
+                'minStock'      => (float)$fields['PROPERTY_MIN_STOCK_VALUE'],
                 'photo'         => $fields['PROPERTY_PHOTO_VALUE']
-                                   ? \CFile::GetPath($fields['PROPERTY_PHOTO_VALUE'])
-                                   : null,
+                                ? \CFile::GetPath($fields['PROPERTY_PHOTO_VALUE'])
+                                : null,
             ];
         }
         return $result;
@@ -194,9 +236,10 @@ class CustomRestMethods
     }
 
     /**
-     * Получить ID значения списка по XML_ID
+     * Получить ID значения списка по значению
      */
-    private static function getEnumId($fieldName, $xmlId)
+    
+     private static function getEnumId($fieldName, $xmlId)
     {
         if (empty($xmlId)) return null;
         
@@ -301,99 +344,447 @@ class CustomRestMethods
         return true;
     }
 
+    
     /**
      * Получить список рецептов
      */
     public static function getRecipes($data = [])
     {
-        Loader::includeModule('highloadblock');
+        \Bitrix\Main\Loader::includeModule('highloadblock');
+        
+        $hlBlockId = self::HL_RECIPES;
+        
         $entity = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity(
-            \Bitrix\Highloadblock\HighloadBlockTable::getById(self::HL_RECIPES)->fetch()
+            \Bitrix\Highloadblock\HighloadBlockTable::getById($hlBlockId)->fetch()
         );
         $dataClass = $entity->getDataClass();
-
+        
+        $filter = [];
+        if (!empty($data['productId'])) {
+            $filter['=UF_PRODUCT_ID'] = (int)$data['productId'];
+        }
+        
         $res = $dataClass::getList([
             'select' => ['*'],
-            'order' => ['ID' => 'ASC']
+            'filter' => $filter,
+            'order' => ['ID' => 'DESC']
         ]);
-        $recipes = [];
+        
+        $result = [];
         while ($row = $res->fetch()) {
+            // Получаем ингредиенты
             $row['INGREDIENTS'] = self::getRecipeIngredients($row['ID']);
-            $recipes[] = $row;
+            
+            // Форматируем рецепт
+            $result[] = self::formatRecipe($row);
         }
-        return $recipes;
+        
+        return $result;
     }
 
     /**
-     * Создать рецепт с ингредиентами
+     * Получить ингредиенты рецепта
+     */
+    private static function getRecipeIngredients($recipeId)
+    {
+        $hlBlockId = self::HL_RECIPE_INGREDIENTS;
+        
+        $entity = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity(
+            \Bitrix\Highloadblock\HighloadBlockTable::getById($hlBlockId)->fetch()
+        );
+        $dataClass = $entity->getDataClass();
+        
+        $res = $dataClass::getList([
+            'select' => ['*'],
+            'filter' => ['=UF_RECIPE_ID' => $recipeId]
+        ]);
+        
+        $ingredients = [];
+        while ($row = $res->fetch()) {
+            $ingredients[] = $row;
+        }
+        
+        return $ingredients;
+    }
+
+    /**
+     * Получить название товара по ID
+     */
+    private static function getProductName($productId)
+    {
+        \Bitrix\Main\Loader::includeModule('iblock');
+        $res = \CIBlockElement::GetByID($productId);
+        if ($product = $res->Fetch()) {
+            return $product['NAME'];
+        }
+        return null;
+    }
+
+    /**
+     * Создать рецепт
      */
     public static function createRecipe($data = [])
     {
-        if (empty($data['productId']) || empty($data['ingredients'])) {
-            throw new \Exception('productId and ingredients required');
+        \Bitrix\Main\Loader::includeModule('highloadblock');
+        
+        $required = ['productId', 'name', 'outputWeight', 'outputUnit', 'ingredients'];
+        foreach ($required as $field) {
+            if (empty($data[$field])) {
+                throw new \Exception("Field {$field} is required");
+            }
         }
-
-        $recipeData = [
+        
+        // Создаём рецепт
+        $hlBlockId = self::HL_RECIPES;
+        $entity = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity(
+            \Bitrix\Highloadblock\HighloadBlockTable::getById($hlBlockId)->fetch()
+        );
+        $dataClass = $entity->getDataClass();
+        
+        $fields = [
             'UF_PRODUCT_ID' => (int)$data['productId'],
-            'UF_NAME' => $data['name'] ?? '',
-            'UF_OUTPUT_WEIGHT' => (float)($data['outputWeight'] ?? 0),
-            'UF_OUTPUT_UNIT' => $data['outputUnit'] ?? 'г',
+            'UF_NAME' => $data['name'],
+            'UF_OUTPUT_WEIGHT' => (float)$data['outputWeight'],
+            'UF_OUTPUT_UNIT' => $data['outputUnit'],
             'UF_COOKING_TIME' => (int)($data['cookingTime'] ?? 0),
             'UF_INSTRUCTIONS' => $data['instructions'] ?? '',
         ];
-
-        $ingredients = [];
+        
+        // Если есть фото
+        if (!empty($data['photo']) && strpos($data['photo'], 'data:image') === 0) {
+            $fields['UF_PHOTO'] = self::saveBase64Image($data['photo']);
+        }
+        
+        $result = $dataClass::add($fields);
+        if (!$result->isSuccess()) {
+            throw new \Exception(implode(', ', $result->getErrorMessages()));
+        }
+        
+        $recipeId = $result->getId();
+        
+        // Добавляем ингредиенты
+        $ingredientsHlId = self::HL_RECIPE_INGREDIENTS;
+        $ingEntity = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity(
+            \Bitrix\Highloadblock\HighloadBlockTable::getById($ingredientsHlId)->fetch()
+        );
+        $ingDataClass = $ingEntity->getDataClass();
+        
         foreach ($data['ingredients'] as $ing) {
-            $ingredients[] = [
+            $ingFields = [
+                'UF_RECIPE_ID' => $recipeId,
                 'UF_INGREDIENT_ID' => (int)$ing['ingredientId'],
                 'UF_QUANTITY' => (float)$ing['quantity'],
                 'UF_UNIT' => $ing['unit'],
-                'UF_IS_OPTIONAL' => ($ing['isOptional'] ?? false) ? 1 : 0,
+                'UF_IS_OPTIONAL' => (int)($ing['isOptional'] ?? 0)
             ];
+            
+            $ingDataClass::add($ingFields);
         }
-
-        $recipeId = RecipeHelper::createRecipe($recipeData, $ingredients);
+        
         return ['recipeId' => $recipeId];
     }
 
+    /**
+     * Обновить рецепт
+     */
+    public static function updateRecipe($data = [])
+    {
+        $id = (int)($data['id'] ?? 0);
+        if (!$id) {
+            throw new \Exception('Recipe ID required');
+        }
+        
+        \Bitrix\Main\Loader::includeModule('highloadblock');
+        
+        $hlBlockId = self::HL_RECIPES;
+        $entity = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity(
+            \Bitrix\Highloadblock\HighloadBlockTable::getById($hlBlockId)->fetch()
+        );
+        $dataClass = $entity->getDataClass();
+        
+        $fields = [];
+        if (!empty($data['productId'])) {
+            $fields['UF_PRODUCT_ID'] = (int)$data['productId'];
+        }
+        if (!empty($data['name'])) {
+            $fields['UF_NAME'] = $data['name'];
+        }
+        if (isset($data['outputWeight'])) {
+            $fields['UF_OUTPUT_WEIGHT'] = (float)$data['outputWeight'];
+        }
+        if (!empty($data['outputUnit'])) {
+            $fields['UF_OUTPUT_UNIT'] = $data['outputUnit'];
+        }
+        if (isset($data['cookingTime'])) {
+            $fields['UF_COOKING_TIME'] = (int)$data['cookingTime'];
+        }
+        if (isset($data['instructions'])) {
+            $fields['UF_INSTRUCTIONS'] = $data['instructions'];
+        }
+        
+        if (!empty($fields)) {
+            $dataClass::update($id, $fields);
+        }
+        
+        // Обновление ингредиентов (удалить старые, добавить новые)
+        if (!empty($data['ingredients'])) {
+            // Удаляем старые ингредиенты
+            $ingHlId = self::HL_RECIPE_INGREDIENTS;
+            $ingEntity = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity(
+                \Bitrix\Highloadblock\HighloadBlockTable::getById($ingHlId)->fetch()
+            );
+            $ingDataClass = $ingEntity->getDataClass();
+            
+            $old = $ingDataClass::getList(['filter' => ['=UF_RECIPE_ID' => $id]]);
+            while ($item = $old->fetch()) {
+                $ingDataClass::delete($item['ID']);
+            }
+            
+            // Добавляем новые
+            foreach ($data['ingredients'] as $ing) {
+                $ingFields = [
+                    'UF_RECIPE_ID' => $id,
+                    'UF_INGREDIENT_ID' => (int)$ing['ingredientId'],
+                    'UF_QUANTITY' => (float)$ing['quantity'],
+                    'UF_UNIT' => $ing['unit'],
+                    'UF_IS_OPTIONAL' => (int)($ing['isOptional'] ?? 0)
+                ];
+                $ingDataClass::add($ingFields);
+            }
+        }
+        
+        return ['success' => true];
+    }
+
+    /**
+     * Удалить рецепт
+     */
+    public static function deleteRecipe($data = [])
+    {
+        $id = (int)($data['id'] ?? 0);
+        if (!$id) {
+            throw new \Exception('Recipe ID required');
+        }
+        
+        \Bitrix\Main\Loader::includeModule('highloadblock');
+        
+        // Удаляем ингредиенты
+        $ingHlId = self::HL_RECIPE_INGREDIENTS;
+        $ingEntity = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity(
+            \Bitrix\Highloadblock\HighloadBlockTable::getById($ingHlId)->fetch()
+        );
+        $ingDataClass = $ingEntity->getDataClass();
+        
+        $ingredients = $ingDataClass::getList(['filter' => ['=UF_RECIPE_ID' => $id]]);
+        while ($ing = $ingredients->fetch()) {
+            $ingDataClass::delete($ing['ID']);
+        }
+        
+        // Удаляем рецепт
+        $hlBlockId = self::HL_RECIPES;
+        $entity = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity(
+            \Bitrix\Highloadblock\HighloadBlockTable::getById($hlBlockId)->fetch()
+        );
+        $dataClass = $entity->getDataClass();
+        
+        $dataClass::delete($id);
+        
+        return ['success' => true];
+    }
+
+    
     /**
      * Рассчитать себестоимость блюда по рецепту
      */
     public static function calculateRecipeCost($data = [])
     {
-        if (empty($data['recipeId'])) {
-            throw new \Exception('recipeId required');
+        $recipeId = (int)($data['recipeId'] ?? 0);
+        if (!$recipeId) {
+            throw new \Exception('Recipe ID required');
         }
-        $cost = RecipeHelper::calculateCost((int)$data['recipeId']);
-        return ['cost' => $cost];
+        
+        $recipe = self::getRecipeById($recipeId);
+        if (!$recipe) {
+            throw new \Exception('Recipe not found');
+        }
+        
+        $total = 0;
+        foreach ($recipe['INGREDIENTS'] as $ing) {
+            $product = self::getProductById($ing['UF_INGREDIENT_ID']);
+            if (!$product) continue;
+            
+            // Рассчитываем стоимость одной базовой единицы
+            $costPerBaseUnit = $product['costPrice'] / $product['baseRatio'];
+            
+            // Умножаем на количество в рецепте (уже в базовых единицах)
+            $total += $costPerBaseUnit * $ing['UF_QUANTITY'];
+        }
+        
+        return ['cost' => round($total, 2)];
     }
 
     /**
-     * Получить заказы для кухни (статусы new, cooking)
+     * Списать ингредиенты по рецепту
      */
-    public static function getKitchenOrders($data = [])
+    public static function consumeRecipeIngredients($data = [])
     {
-        $orders = OrderHelper::getKitchenOrders();
-        foreach ($orders as &$order) {
-            $order['ITEMS'] = OrderItemHelper::getByOrderId($order['ID']);
+        $recipeId = (int)($data['recipeId'] ?? 0);
+        $quantity = (int)($data['quantity'] ?? 1);
+        
+        if (!$recipeId) {
+            throw new \Exception('Recipe ID required');
         }
-        return $orders;
+        
+        $recipe = self::getRecipeById($recipeId);
+        if (!$recipe) {
+            throw new \Exception('Recipe not found');
+        }
+        
+        $results = [];
+        foreach ($recipe['INGREDIENTS'] as $ing) {
+            $product = self::getProductById($ing['UF_INGREDIENT_ID']);
+            if (!$product) continue;
+            
+            // Сколько базовых единиц нужно (умножаем на количество порций)
+            $baseUnitsNeeded = $ing['UF_QUANTITY'] * $quantity;
+            
+            // Переводим в единицы хранения
+            $storageUnitsNeeded = $baseUnitsNeeded / $product['baseRatio'];
+            
+            // Списываем со склада
+            $movementData = [
+                'productId' => $product['id'],
+                'type' => 'outcome',
+                'quantity' => $storageUnitsNeeded,
+                'documentType' => 'sale',
+                'comment' => "Списание по рецепту {$recipe['UF_NAME']} ({$quantity} порц)"
+            ];
+            
+            $result = self::addMovement($movementData);
+            $results[] = $result;
+        }
+        
+        return [
+            'success' => true,
+            'movements' => $results
+        ];
     }
 
     /**
-     * Вспомогательный метод для получения ингредиентов рецепта
+     * Вспомогательный метод для получения товара по ID
      */
-    private static function getRecipeIngredients($recipeId)
+    private static function getProductById($productId)
     {
-        $entity = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity(
-            \Bitrix\Highloadblock\HighloadBlockTable::getById(self::HL_RECIPE_INGREDIENTS)->fetch()
+        Loader::includeModule('iblock');
+        
+        $select = [
+            'ID', 'NAME',
+            'PROPERTY_COST_PRICE',
+            'PROPERTY_BASE_RATIO',
+            'PROPERTY_BASE_UNIT'
+        ];
+        
+        $res = \CIBlockElement::GetList(
+            [],
+            ['IBLOCK_ID' => self::IBLOCK_PRODUCTS, 'ID' => $productId],
+            false,
+            false,
+            $select
         );
-        $dataClass = $entity->getDataClass();
-        $res = $dataClass::getList([
-            'filter' => ['=UF_RECIPE_ID' => $recipeId],
-            'select' => ['*']
-        ]);
-        return $res->fetchAll();
+        
+        if ($fields = $res->GetNext()) {
+            return [
+                'id' => (int)$fields['ID'],
+                'name' => $fields['NAME'],
+                'costPrice' => (float)$fields['PROPERTY_COST_PRICE_VALUE'],
+                'baseRatio' => (float)$fields['PROPERTY_BASE_RATIO_VALUE'] ?: 1,
+                'baseUnit' => $fields['PROPERTY_BASE_UNIT_VALUE'],
+            ];
+        }
+        
+        return null;
+    }
+
+    /**
+     * Форматирование рецепта для отправки на фронтенд
+     */
+    private static function formatRecipe($recipe)
+    {
+        // Получаем название готового блюда из инфоблока
+        $productName = null;
+        if (!empty($recipe['UF_PRODUCT_ID'])) {
+            \Bitrix\Main\Loader::includeModule('iblock');
+            $res = \CIBlockElement::GetByID($recipe['UF_PRODUCT_ID']);
+            if ($product = $res->Fetch()) {
+                $productName = $product['NAME'];
+            }
+        }
+
+        return [
+            'id' => (int)$recipe['ID'],
+            'productId' => (int)$recipe['UF_PRODUCT_ID'],
+            'productName' => $productName,
+            'name' => $recipe['UF_NAME'],
+            'outputWeight' => (float)$recipe['UF_OUTPUT_WEIGHT'],
+            'outputUnit' => $recipe['UF_OUTPUT_UNIT'],
+            'cookingTime' => isset($recipe['UF_COOKING_TIME']) ? (int)$recipe['UF_COOKING_TIME'] : null,
+            'instructions' => $recipe['UF_INSTRUCTIONS'] ?? '',
+            'ingredients' => self::formatIngredients($recipe['INGREDIENTS'] ?? []),
+            'photo' => $recipe['UF_PHOTO'] ?? null,
+            'createdAt' => $recipe['UF_CREATED_AT'] ?? null,
+            'updatedAt' => $recipe['UF_UPDATED_AT'] ?? null,
+        ];
+    }
+
+    /**
+     * Форматирование ингредиентов
+     */
+    private static function formatIngredients($ingredients)
+    {
+        $result = [];
+        foreach ($ingredients as $ing) {
+            // Получаем название ингредиента из инфоблока
+            $ingredientName = null;
+            if (!empty($ing['UF_INGREDIENT_ID'])) {
+                \Bitrix\Main\Loader::includeModule('iblock');
+                $res = \CIBlockElement::GetByID($ing['UF_INGREDIENT_ID']);
+                if ($product = $res->Fetch()) {
+                    $ingredientName = $product['NAME'];
+                }
+            }
+
+            $result[] = [
+                'id' => (int)$ing['ID'],
+                'recipeId' => (int)$ing['UF_RECIPE_ID'],
+                'ingredientId' => (int)$ing['UF_INGREDIENT_ID'],
+                'ingredientName' => $ingredientName,
+                'quantity' => (float)$ing['UF_QUANTITY'],
+                'unit' => $ing['UF_UNIT'],
+                'isOptional' => (bool)$ing['UF_IS_OPTIONAL'],
+                'cost' => isset($ing['UF_COST']) ? (float)$ing['UF_COST'] : null,
+            ];
+        }
+        return $result;
+    }
+
+    /**
+     * Сохранить base64 изображение
+     */
+    private static function saveBase64Image($base64)
+    {
+        $data = explode(',', $base64);
+        $image = base64_decode($data[1]);
+        
+        $fileName = 'recipe_' . time() . '.jpg';
+        $filePath = $_SERVER['DOCUMENT_ROOT'] . '/upload/recipes/' . $fileName;
+        
+        if (!is_dir(dirname($filePath))) {
+            mkdir(dirname($filePath), 0755, true);
+        }
+        
+        file_put_contents($filePath, $image);
+        
+        return '/upload/recipes/' . $fileName;
     }
 
     /**
@@ -462,6 +853,19 @@ class CustomRestMethods
             }
         }
 
+        $baseUnitEnumId = null;
+        if (!empty($data['baseUnit'])) {
+            $enumRes = \CIBlockPropertyEnum::GetList(
+                [],
+                ['IBLOCK_ID' => self::IBLOCK_PRODUCTS, 'CODE' => 'BASE_UNIT', 'VALUE' => $data['baseUnit']]
+            );
+            if ($enum = $enumRes->Fetch()) {
+                $baseUnitEnumId = $enum['ID'];
+            } else {
+                throw new \Exception("Invalid baseUnit value: {$data['baseUnit']}");
+            }
+        }
+
         $el = new \CIBlockElement();
 
         $code = \CUtil::translit($data['name'], 'ru', [
@@ -485,6 +889,8 @@ class CustomRestMethods
                 'SELLING_PRICE' => (float)($data['sellingPrice'] ?? 0),
                 'CURRENT_STOCK' => (float)($data['currentStock'] ?? 0),
                 'MIN_STOCK' => (float)($data['minStock'] ?? 0),
+                'BASE_UNIT' => $baseUnitEnumId,
+                'BASE_RATIO' => (float)($data['baseRatio'] ?? 1),
             ],
         ];
 
@@ -554,35 +960,44 @@ class CustomRestMethods
             $updateFields['PREVIEW_TEXT'] = $data['description'];
         }
 
-        // Категория (раздел) обновляется отдельно, это не свойство
+        // Категория (раздел)
         if (array_key_exists('categoryId', $data)) {
             $updateFields['IBLOCK_SECTION_ID'] = (int)$data['categoryId'] ?: null;
         }
 
-        // Свойства товара (кроме categoryId)
+        // Свойства товара
         $props = [];
-        $propFields = ['type', 'unit', 'costPrice', 'sellingPrice', 'currentStock', 'minStock'];
-        foreach ($propFields as $prop) {
-            if (array_key_exists($prop, $data)) {
-                $value = $data[$prop];
-                
-                // Для type и unit преобразуем в ID варианта списка
-                if ($prop === 'type' || $prop === 'unit') {
-                    $enumRes = \CIBlockPropertyEnum::GetList(
-                        [],
-                        ['IBLOCK_ID' => self::IBLOCK_PRODUCTS, 'CODE' => strtoupper($prop), 'VALUE' => $value]
-                    );
-                    if ($enum = $enumRes->Fetch()) {
-                        $value = $enum['ID'];
-                    } else {
-                        throw new \Exception("Invalid {$prop} value: {$value}");
-                    }
-                } elseif (in_array($prop, ['costPrice', 'sellingPrice', 'currentStock', 'minStock'])) {
-                    $value = (float)$value;
-                }
-                
-                $props[strtoupper($prop)] = $value;
-            }
+        
+        if (array_key_exists('type', $data)) {
+            $props['TYPE'] = self::getEnumId('TYPE', $data['type']);
+        }
+        
+        if (array_key_exists('unit', $data)) {
+            $props['UNIT'] = self::getEnumId('UNIT', $data['unit']);
+        }
+        
+        if (array_key_exists('baseUnit', $data)) {
+            $props['BASE_UNIT'] = self::getEnumId('BASE_UNIT', $data['baseUnit']);
+        }
+        
+        if (array_key_exists('baseRatio', $data)) {
+            $props['BASE_RATIO'] = (float)$data['baseRatio'];
+        }
+        
+        if (array_key_exists('costPrice', $data)) {
+            $props['COST_PRICE'] = (float)$data['costPrice'];
+        }
+        
+        if (array_key_exists('sellingPrice', $data)) {
+            $props['SELLING_PRICE'] = (float)$data['sellingPrice'];
+        }
+        
+        if (array_key_exists('currentStock', $data)) {
+            $props['CURRENT_STOCK'] = (float)$data['currentStock'];
+        }
+        
+        if (array_key_exists('minStock', $data)) {
+            $props['MIN_STOCK'] = (float)$data['minStock'];
         }
 
         if (!empty($props)) {
@@ -676,5 +1091,47 @@ class CustomRestMethods
             // добавьте другие соответствия
         ];
         return $map[(int)$typeId] ?? 'manual';
+    }
+
+    public static function calculateIngredientCost($productId, $quantityInRecipe, $recipeUnit)
+    {
+        $product = self::getProductById($productId);
+        
+        // Если единица в рецепте совпадает с базовой единицей товара
+        if ($recipeUnit === $product['BASE_UNIT']) {
+            // Стоимость одной базовой единицы
+            $costPerBaseUnit = $product['costPrice'] / $product['baseRatio'];
+            return $costPerBaseUnit * $quantityInRecipe;
+        }
+        
+        // Если нужно дополнительное преобразование (например, рецепт в граммах, а базовый в мл)
+        // Тут нужна логика конвертации
+        throw new Exception('Несоответствие единиц измерения');
+    }
+
+    public static function consumeIngredients($recipeId, $quantity = 1)
+    {
+        $recipe = self::getRecipeById($recipeId);
+        
+        foreach ($recipe['ingredients'] as $ing) {
+            $product = self::getProductById($ing['ingredientId']);
+            
+            // Пересчитываем количество в единицы хранения
+            if ($ing['unit'] === $product['BASE_UNIT']) {
+                // Сколько базовых единиц нужно
+                $baseUnitsNeeded = $ing['quantity'] * $quantity;
+                
+                // Переводим в единицы хранения
+                $storageUnitsNeeded = $baseUnitsNeeded / $product['baseRatio'];
+                
+                // Списание со склада
+                StockMovementHelper::addMovement([
+                    'UF_PRODUCT_ID' => $product['id'],
+                    'UF_TYPE' => 'outcome',
+                    'UF_QUANTITY' => $storageUnitsNeeded,
+                    'UF_COMMENT' => "Списание по рецепту {$recipe['name']}"
+                ]);
+            }
+        }
     }
 }

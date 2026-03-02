@@ -66,7 +66,7 @@
       flat
       bordered
     >
-      <!-- Индикатор остатка -->
+      <!-- Индикатор остатка с базовыми единицами -->
       <template v-slot:body-cell-stock="props">
         <q-td :props="props">
           <div class="row items-center">
@@ -82,13 +82,41 @@
               <q-tooltip>Критический остаток</q-tooltip>
             </q-icon>
           </div>
+          <div class="text-caption text-grey-7">
+            {{ (props.row.currentStock * (props.row.baseRatio || 1)).toFixed(0) }} {{ props.row.baseUnit }}
+          </div>
         </q-td>
       </template>
 
-      <!-- Цена -->
+      <!-- Себестоимость (за базовую единицу и за единицу хранения) -->
+      <template v-slot:body-cell-cost="props">
+        <q-td :props="props">
+          <div>{{ formatMoney(props.row.costPrice) }} / {{ props.row.unit }}</div>
+          <div class="text-caption text-grey-7">
+            {{ formatMoney(props.row.costPrice / (props.row.baseRatio || 1)) }} / {{ props.row.baseUnit }}
+          </div>
+        </q-td>
+      </template>
+
+      <!-- Цена продажи (только для готовых товаров) -->
       <template v-slot:body-cell-price="props">
         <q-td :props="props">
-          {{ formatMoney(props.row.sellingPrice) }}
+          <div v-if="props.row.type === 'finished'">
+            {{ formatMoney(props.row.sellingPrice) }}
+          </div>
+          <div v-else class="text-grey-5">
+            —
+          </div>
+        </q-td>
+      </template>
+
+      <!-- Минимальный остаток -->
+      <template v-slot:body-cell-minStock="props">
+        <q-td :props="props">
+          <div>{{ props.row.minStock }} {{ props.row.unit }}</div>
+          <div class="text-caption text-grey-7">
+            {{ (props.row.minStock * (props.row.baseRatio || 1)).toFixed(0) }} {{ props.row.baseUnit }}
+          </div>
         </q-td>
       </template>
 
@@ -192,10 +220,10 @@ export default defineComponent({
     const columns = [
       { name: 'name', label: 'Товар', field: 'name', align: 'left', sortable: true },
       { name: 'type', label: 'Тип', field: 'type', align: 'center' },
-      { name: 'stock', label: 'Остаток', field: 'currentStock', align: 'center', sortable: true },
-      { name: 'unit', label: 'Ед.', field: 'unit', align: 'center' },
-      { name: 'minStock', label: 'Мин.', field: 'minStock', align: 'center' },
-      { name: 'price', label: 'Цена', field: 'sellingPrice', align: 'right' },
+      { name: 'stock', label: 'Остаток', field: 'currentStock', align: 'left', sortable: true },
+      { name: 'cost', label: 'Себестоимость', field: 'costPrice', align: 'right', sortable: true },
+      { name: 'price', label: 'Цена продажи', field: 'sellingPrice', align: 'right', sortable: true },
+      { name: 'minStock', label: 'Мин. остаток', field: 'minStock', align: 'left' },
       { name: 'actions', label: 'Действия', align: 'center' }
     ];
 
@@ -209,7 +237,7 @@ export default defineComponent({
       return new Intl.NumberFormat('ru-RU', {
         style: 'currency',
         currency: 'RUB',
-        minimumFractionDigits: 0
+        minimumFractionDigits: 2
       }).format(value);
     };
 
