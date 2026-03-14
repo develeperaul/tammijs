@@ -29,12 +29,30 @@
         </q-item-label>
 
         <!-- Товары -->
-        <q-item clickable v-ripple to="/products" exact>
+        <q-item clickable v-ripple to="/ingredients" exact>
           <q-item-section avatar>
-            <q-icon name="inventory" />
+            <q-icon name="grass" />
           </q-item-section>
           <q-item-section>
-            Товары
+            Ингредиенты
+          </q-item-section>
+        </q-item>
+
+        <q-item clickable v-ripple to="/semi-finished" exact>
+          <q-item-section avatar>
+            <q-icon name="kitchen" />
+          </q-item-section>
+          <q-item-section>
+            Полуфабрикаты
+          </q-item-section>
+        </q-item>
+
+        <q-item clickable v-ripple to="/products" exact>
+          <q-item-section avatar>
+            <q-icon name="restaurant_menu" />
+          </q-item-section>
+          <q-item-section>
+            Готовые блюда
           </q-item-section>
         </q-item>
 
@@ -84,6 +102,14 @@
           </q-item-section>
           <q-item-section>
             Отчёты
+          </q-item-section>
+        </q-item>
+        <q-item clickable v-ripple to="/suppliers" exact>
+          <q-item-section avatar>
+            <q-icon name="business" />
+          </q-item-section>
+          <q-item-section>
+            Поставщики
           </q-item-section>
         </q-item>
 

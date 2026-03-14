@@ -1,4 +1,3 @@
-// src/services/product.service.ts
 import { api } from 'boot/axios';
 import { ApiResponse } from 'src/types/api.types';
 import { Product, ProductFilter, CreateProductDto, ProductCategory } from 'src/types/product.types';
@@ -16,77 +15,123 @@ class ProductService {
   }
 
   /**
-   * Получить список товаров
+   * Получить продукты с фильтрацией по типу
+   * @param type - 'all' | 'produced' | 'resale' (по умолчанию 'all')
    */
-  async getProducts(filter?: ProductFilter): Promise<ApiResponse<Product[]>> {
-    const params: Record<string, any> = { action: 'products.get' };
+  async getProducts(type: 'all' | 'produced' | 'resale' = 'all', filter?: ProductFilter): Promise< ApiResponse<Product[]>> {
+    const params: Record<string, any> = {
+      action: 'products.get',
+      type
+    };
 
-    if (filter?.search) params.search = filter.search;
-    if (filter?.type) params.type = filter.type;
-    if (filter?.categoryId) params.categoryId = filter.categoryId;
-    if (filter?.lowStock) params.lowStock = filter.lowStock ? '1' : '0';
+    if (filter?.categoryId) {
+      params.category = filter.categoryId;
+    }
 
     const response = await api.get('/index.php', { params });
-    // response уже содержит { success: true, data: [...] } после интерцептора
-    return response.data; // массив товаров
+    let products = response.data;
+
+    // Дополнительная фильтрация на фронте если нужно
+    if (filter?.search) {
+      const search = filter.search.toLowerCase();
+      products = products.filter((p: Product) =>
+        p.name.toLowerCase().includes(search) ||
+        p.code?.toLowerCase().includes(search)
+      );
+    }
+
+    if (filter?.lowStock) {
+      products = products.filter((p: Product) =>
+        p.currentStock !== undefined && p.minStock !== undefined &&
+        p.currentStock <= p.minStock
+      );
+    }
+
+    return products;
   }
 
   /**
-   * Получить товар по ID
+   * Получить готовые блюда
    */
-  async getProductById(id: number): Promise<Product | null> {
-    const params = { action: 'products.get', id: id.toString() };
-    const response = await api.get('/index.php', { params });
-    // Предполагаем, что бэкенд вернёт массив из одного элемента или объект?
-    // В текущей реализации getProducts возвращает массив. Удобнее было бы сделать отдельный метод product.get,
-    // но пока можем найти в массиве. Альтернативно: бэкенд может поддерживать product.get с id.
-    // Пока так:
-    const products = response.data as Product[];
-    return products.find(p => p.id === id) || null;
+  async getProducedProducts(filter?: ProductFilter): Promise< ApiResponse<Product[]>> {
+    return this.getProducts('produced', filter);
+  }
+
+  /**
+   * Получить товары для перепродажи
+   */
+  async getResaleProducts(filter?: ProductFilter): Promise< ApiResponse<Product[]>> {
+    return this.getProducts('resale', filter);
   }
 
   /**
    * Создать товар
-   * Для этого метода на бэкенде должен быть реализован action 'product.create'
    */
-  async createProduct(data: CreateProductDto): Promise<Product> {
+  async createProduct(data: CreateProductDto): Promise<{ id: number }> {
     const response = await api.post('/index.php', data, {
       params: { action: 'product.create' }
     });
-    // Предполагаем, что бэкенд возвращает созданный товар в response.data
     return response.data;
   }
 
   /**
    * Обновить товар
-   * action 'product.update'
    */
-  async updateProduct(id: number, data: Partial<CreateProductDto>): Promise<Product> {
-    const response = await api.put('/index.php', data, {
-      params: { action: 'product.update', id: id.toString() }
+  async updateProduct(id: number, data: Partial<CreateProductDto>): Promise<boolean> {
+    const response = await api.post('/index.php', data, {
+      params: { action: 'product.update', id }
     });
-    return response.data;
+    return response.data.success;
   }
 
   /**
    * Удалить товар
-   * action 'product.delete'
    */
   async deleteProduct(id: number): Promise<boolean> {
-    await api.delete('/index.php', {
-      params: { action: 'product.delete', id: id.toString() }
+    const response = await api.delete('/index.php', {
+      params: { action: 'product.delete', id }
     });
-    return true; // если дошли до этой строки, значит исключение не было выброшено
+    return response.data.success;
   }
 
   /**
    * Получить категории
-   * Предполагается, что на бэкенде есть action 'categories.get'
    */
   async getCategories(): Promise<ApiResponse<ProductCategory[]>> {
-    const params = { action: 'categories.get' };
-    const response = await api.get('/index.php', { params });
+    const response = await api.get('/index.php', {
+      params: { action: 'categories.get' }
+    });
     return response.data;
+  }
+
+  /**
+   * Создать категорию
+   */
+  async createCategory(data: { name: string; sort?: number }): Promise<{ id: number }> {
+    const response = await api.post('/index.php', data, {
+      params: { action: 'category.create' }
+    });
+    return response.data;
+  }
+
+  /**
+   * Обновить категорию
+   */
+  async updateCategory(id: number, data: { name?: string; sort?: number }): Promise<boolean> {
+    const response = await api.post('/index.php', data, {
+      params: { action: 'category.update', id }
+    });
+    return response.data.success;
+  }
+
+  /**
+   * Удалить категорию
+   */
+  async deleteCategory(id: number): Promise<boolean> {
+    const response = await api.delete('/index.php', {
+      params: { action: 'category.delete', id }
+    });
+    return response.data.success;
   }
 }
 

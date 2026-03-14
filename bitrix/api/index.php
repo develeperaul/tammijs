@@ -65,31 +65,57 @@ require_once($_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/classes/CustomRes
 
 // Маршрутизация
 $routes = [
-    'products.get'           => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getProducts']],
-    'stock.get'              => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getStock']],
-    'stock.history.get'      => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getStockHistory']],
-    'stock.movement.add'     => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'addMovement']],
-    'orders.get'             => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getOrders']],
-    'order.create'           => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'createOrder']],
-    'order.update.status'    => ['method' => 'PUT',    'callback' => ['CustomRestMethods', 'updateOrderStatus']],
-    'order.item.update.status' => ['method' => 'PUT',  'callback' => ['CustomRestMethods', 'updateOrderItemStatus']],
-    'recipes.get'            => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getRecipes']],
-    'recipe.create'          => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'createRecipe']],
-    'recipe.update'          => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'updateRecipe']],
-    'recipe.delete'          => ['method' => 'DELETE', 'callback' => ['CustomRestMethods', 'deleteRecipe']],
-    'recipe.calculate.cost'  => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'calculateRecipeCost']],
-    'recipe.consume'         => ['method' => 'POST', 'callback' => ['CustomRestMethods', 'consumeRecipeIngredients']],
-    'kitchen.orders'         => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getKitchenOrders']],
-    'categories.get'         => ['method' => 'GET', 'callback' => ['CustomRestMethods', 'getCategories']],
-    'product.create'         => ['method' => 'POST', 'callback' => ['CustomRestMethods', 'createProduct']],
-    'product.delete'         => ['method' => 'DELETE', 'callback' => ['CustomRestMethods', 'deleteProduct']],
-    'product.update' => ['method' => 'PUT', 'callback' => ['CustomRestMethods', 'updateProduct']],
-    'suppliers.get'           => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getSuppliers']],
-    'supplier.create'        => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'createSupplier']],
-    'supplier.update'        => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'updateSupplier']],
-    'supplier.delete'        => ['method' => 'DELETE', 'callback' => ['CustomRestMethods', 'deleteSupplier']],
-    'supplier.price.history' => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getSupplierPriceHistory']],
-    'supplier.compare.prices'=> ['method' => 'GET',    'callback' => ['CustomRestMethods', 'compareSuppliersPrices']],
+    // ===== ТОВАРЫ И КАТЕГОРИИ =====
+    'products.get'      => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getProducts']],
+    'product.create'    => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'createProduct']],
+    'product.update'    => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'updateProduct']],
+    'product.delete'    => ['method' => 'DELETE', 'callback' => ['CustomRestMethods', 'deleteProduct']],
+    
+    // Категории
+    'categories.get'    => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getCategories']],
+    'category.create'   => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'createCategory']],
+    'category.update'   => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'updateCategory']],
+    'category.delete'   => ['method' => 'DELETE', 'callback' => ['CustomRestMethods', 'deleteCategory']],
+
+    // ===== ИНГРЕДИЕНТЫ =====
+    'ingredients.get'   => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getIngredients']],
+    'ingredient.create' => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'createIngredient']],
+    'ingredient.update' => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'updateIngredient']],
+    'ingredient.delete' => ['method' => 'DELETE', 'callback' => ['CustomRestMethods', 'deleteIngredient']],
+
+    // ===== ПОЛУФАБРИКАТЫ =====
+    'semi.get'          => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getSemiFinished']],
+    'semi.create'       => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'createSemiFinished']],
+    'semi.update'       => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'updateSemiFinished']],
+    'semi.delete'       => ['method' => 'DELETE', 'callback' => ['CustomRestMethods', 'deleteSemiFinished']],
+
+    // ===== РЕЦЕПТЫ =====
+    'recipes.get'       => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getRecipes']],
+    'recipe.create'     => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'createRecipe']],
+    'recipe.update'     => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'updateRecipe']],
+    'recipe.delete'     => ['method' => 'DELETE', 'callback' => ['CustomRestMethods', 'deleteRecipe']],
+    'recipe.calculate.cost' => ['method' => 'GET', 'callback' => ['CustomRestMethods', 'calculateRecipeCost']],
+
+    // ===== ЗАКАЗЫ =====
+    'orders.get'        => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getOrders']],
+    'order.create'      => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'createOrder']],
+    'order.update.status' => ['method' => 'PUT',  'callback' => ['CustomRestMethods', 'updateOrderStatus']],
+    'order.item.update.status' => ['method' => 'PUT', 'callback' => ['CustomRestMethods', 'updateOrderItemStatus']],
+
+    // ===== ОСТАТКИ =====
+    'stock.get'         => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getStock']],
+    'stock.movement.add' => ['method' => 'POST',  'callback' => ['CustomRestMethods', 'addMovement']],
+    'stock.history.get' => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getStockHistory']],
+
+    // ===== ПОСТАВЩИКИ =====
+    'suppliers.get'     => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getSuppliers']],
+    'supplier.create'   => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'createSupplier']],
+    'supplier.update'   => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'updateSupplier']],
+    'supplier.delete'   => ['method' => 'DELETE', 'callback' => ['CustomRestMethods', 'deleteSupplier']],
+    'supplier.price.history' => ['method' => 'GET', 'callback' => ['CustomRestMethods', 'getSupplierPriceHistory']],
+
+    // ===== КУХНЯ =====
+    'kitchen.orders'    => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getKitchenOrders']],
 ];
 
 if (!isset($routes[$action])) {

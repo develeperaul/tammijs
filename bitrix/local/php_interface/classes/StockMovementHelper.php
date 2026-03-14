@@ -34,30 +34,31 @@ class StockMovementHelper
      * Добавить запись о движении товара
      */
     public static function addMovement(array $fields)
-    {
-        $dataClass = self::getDataClass();
-        
-        // Проверка обязательных полей
-        $required = ['UF_PRODUCT_ID', 'UF_TYPE', 'UF_QUANTITY'];
-        foreach ($required as $field) {
-            if (empty($fields[$field])) {
-                throw new \Exception("Поле {$field} обязательно");
-            }
+{
+    $dataClass = self::getDataClass();
+    
+    // Проверяем только обязательные поля
+    $required = ['UF_PRODUCT_ID', 'UF_TYPE', 'UF_QUANTITY'];
+    foreach ($required as $field) {
+        if (empty($fields[$field])) {
+            throw new \Exception("Поле {$field} обязательно");
         }
-
-        // Добавляем дату создания, если не указана
-        if (empty($fields['UF_CREATED_AT'])) {
-            $fields['UF_CREATED_AT'] = new DateTime();
-        }
-
-        $result = $dataClass::add($fields);
-        
-        if (!$result->isSuccess()) {
-            throw new \Exception(implode(', ', $result->getErrorMessages()));
-        }
-        
-        return $result->getId();
     }
+
+    // Добавляем дату создания, если не указана
+    if (empty($fields['UF_CREATED_AT'])) {
+        $fields['UF_CREATED_AT'] = new DateTime();
+    }
+
+    // Просто добавляем все поля, которые пришли
+    $result = $dataClass::add($fields);
+    
+    if (!$result->isSuccess()) {
+        throw new \Exception(implode(', ', $result->getErrorMessages()));
+    }
+    
+    return $result->getId();
+}
 
     /**
      * Получить список движений с фильтрацией

@@ -1,45 +1,59 @@
 <template>
   <div class="row items-center q-gutter-sm">
+    <!-- Тип элемента (ингредиент/полуфабрикат) -->
     <q-select
-      :model-value="localIngredient.ingredientId"
-      :options="ingredientsOptions"
-      option-label="name"
+      v-model="localItem.itemType"
+      :options="itemTypeOptions"
+      label="Тип"
+      outlined
+      dense
+      style="min-width: 120px"
+      emit-value
+      map-options
+      @update:model-value="onTypeChange"
+    />
+
+    <!-- Выбор элемента -->
+    <q-select
+      v-model="localItem.itemId"
+      :options="availableItems"
+      :option-label="getItemLabel"
       option-value="id"
-      label="Ингредиент"
+      :label="localItem.itemType === 'ingredient' ? 'Ингредиент' : 'Полуфабрикат'"
       outlined
       dense
       style="min-width: 220px"
       emit-value
       map-options
-      @update:model-value="(val) => updateIngredient({ ingredientId: val })"
+      @update:model-value="onItemSelect"
     >
       <template v-slot:option="scope">
         <q-item v-bind="scope.itemProps">
           <q-item-section>
-            <q-item-label>{{ scope.opt.name }}</q-item-label>
+            <q-item-label>{{ getItemLabel(scope.opt) }}</q-item-label>
             <q-item-label caption>
-              {{ scope.opt.unit }} |
-              база: 1 {{ scope.opt.unit }} = {{ scope.opt.baseRatio }} {{ scope.opt.baseUnit }}
+              {{ getItemDetails(scope.opt) }}
             </q-item-label>
           </q-item-section>
         </q-item>
       </template>
     </q-select>
 
+    <!-- Количество -->
     <q-input
-      :model-value="localIngredient.quantity"
+      v-model.number="localItem.quantity"
       type="number"
       :label="`Кол-во (в ${selectedBaseUnit})`"
       outlined
       dense
       style="width: 130px"
       step="0.01"
-      @update:model-value="(val) => updateIngredient({ quantity: val })"
+      @update:model-value="$emit('update', localItem)"
     />
 
-    <!-- Единица измерения - теперь строка (только для отображения) -->
+    <!-- Единица измерения (только для отображения) -->
     <q-input
-      :model-value="localIngredient.unit || selectedBaseUnit"
+      v-model="selectedBaseUnit"
       label="Ед."
       outlined
       dense
@@ -48,15 +62,15 @@
       disable
     />
 
-    <!-- Информация о пересчёте в единицы хранения -->
-    <div v-if="selectedProduct" class="text-caption text-grey-7" style="min-width: 100px">
-      ≈ {{ convertedToStorage }} {{ selectedProduct.unit }}
+    <!-- Информация о стоимости -->
+    <div class="text-caption text-grey-7" style="min-width: 100px">
+      ≈ {{ itemCost }} ₽
     </div>
 
     <q-checkbox
-      :model-value="localIngredient.isOptional"
+      v-model="localItem.isOptional"
       label="Необяз."
-      @update:model-value="(val) => updateIngredient({ isOptional: val })"
+      @update:model-value="$emit('update', localItem)"
     />
 
     <q-btn flat dense icon="close" color="negative" @click="$emit('remove')" />
@@ -64,75 +78,126 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, PropType, ref, watch, computed } from 'vue';
-import { RecipeIngredient } from 'src/types/recipe.types';
-import { Product } from 'src/types/product.types';
+import { defineComponent, PropType, ref, computed, watch } from 'vue';
+import { RecipeItem, RecipeItemType } from 'src/types/recipe.types';
+import { Ingredient } from 'src/types/ingredient.types';
+import { SemiFinished } from 'src/types/semi-finished.types';
 
 export default defineComponent({
-  name: 'RecipeIngredientRow',
+  name: 'RecipeItemRow',
 
   props: {
-    ingredient: {
-      type: Object as PropType<Partial<RecipeIngredient>>,
+    item: {
+      type: Object as PropType<Partial<RecipeItem>>,
       required: true
     },
-    ingredientsList: {
-      type: Array as PropType<Product[]>,
-      default: () => []
+    ingredients: {
+      type: Array as PropType<Ingredient[]>,
+      required: true
     },
-    index: {
-      type: Number,
+    semiFinished: {
+      type: Array as PropType<SemiFinished[]>,
       required: true
     }
   },
 
-  emits: ['update:ingredient', 'remove'],
+  emits: ['update', 'remove'],
 
   setup(props, { emit }) {
-    const localIngredient = ref({ ...props.ingredient });
+    const localItem = ref({ ...props.item });
 
-    watch(() => props.ingredient, (val) => {
-      localIngredient.value = { ...val };
-    }, { deep: true });
+    const itemTypeOptions = [
+      { label: 'Ингредиент', value: 'ingredient' },
+      { label: 'Полуфабрикат', value: 'semi-finished' }
+    ];
 
-    const updateIngredient = (changes: Partial<RecipeIngredient>) => {
-      const updated = { ...localIngredient.value, ...changes };
-
-      // Если изменился ingredientId, обновляем unit
-      if (changes.ingredientId) {
-        const product = props.ingredientsList.find(p => p.id === changes.ingredientId);
-        if (product) {
-          updated.unit = product.baseUnit || 'г';
-        }
+    const availableItems = computed(() => {
+      if (localItem.value.itemType === 'ingredient') {
+        return props.ingredients;
+      } else {
+        return props.semiFinished;
       }
+    });
 
-      emit('update:ingredient', props.index, updated);
-    };
+    const selectedItem = computed(() => {
+      if (!localItem.value.itemId || !localItem.value.itemType) return null;
 
-    const selectedProduct = computed(() => {
-      if (!localIngredient.value.ingredientId) return null;
-      return props.ingredientsList.find(p => p.id === localIngredient.value.ingredientId);
+      if (localItem.value.itemType === 'ingredient') {
+        return props.ingredients.find(i => i.id === localItem.value.itemId);
+      } else {
+        return props.semiFinished.find(s => s.id === localItem.value.itemId);
+      }
     });
 
     const selectedBaseUnit = computed(() => {
-      return selectedProduct.value?.baseUnit || 'г';
+      if (localItem.value.itemType === 'ingredient') {
+        return (selectedItem.value as Ingredient)?.baseUnit || 'г';
+      } else {
+        return (selectedItem.value as SemiFinished)?.unit || 'шт';
+      }
     });
 
-    const convertedToStorage = computed(() => {
-      if (!selectedProduct.value || !localIngredient.value.quantity) return '0';
-      const ratio = selectedProduct.value.baseRatio || 1;
-      return (localIngredient.value.quantity / ratio).toFixed(3);
+    const itemCost = computed(() => {
+      if (!selectedItem.value || !localItem.value.quantity) return 0;
+
+      if (localItem.value.itemType === 'ingredient') {
+        const ing = selectedItem.value as Ingredient;
+        const pricePerBaseUnit = ing.costPrice / ing.baseRatio;
+        return (pricePerBaseUnit * localItem.value.quantity).toFixed(2);
+      } else {
+        const semi = selectedItem.value as SemiFinished;
+        const pricePerUnit = semi.costPrice;
+        return (pricePerUnit * localItem.value.quantity).toFixed(2);
+      }
     });
 
-    const ingredientsOptions = props.ingredientsList.filter(p => p.type === 'ingredient');
+    const getItemLabel = (item: any) => {
+      return item?.name || '';
+    };
+
+    const getItemDetails = (item: any) => {
+      if (!item) return '';
+
+      if (localItem.value.itemType === 'ingredient') {
+        return `${item.costPrice} ₽/${item.unit} | база: ${item.baseUnit}`;
+      } else {
+        return `себ.: ${item.costPrice} ₽/${item.unit}`;
+      }
+    };
+
+    const onTypeChange = () => {
+      localItem.value.itemId = 0;
+      localItem.value.quantity = 1;
+      emit('update', localItem.value);
+    };
+
+    const onItemSelect = () => {
+      if (localItem.value.itemType === 'ingredient' && selectedItem.value) {
+        localItem.value.unit = (selectedItem.value as Ingredient).baseUnit;
+      } else if (selectedItem.value) {
+        localItem.value.unit = (selectedItem.value as SemiFinished).unit;
+      }
+      emit('update', localItem.value);
+    };
+
+    watch(() => props.item, (val) => {
+      localItem.value = { ...val };
+    }, { deep: true });
+
+    watch(localItem, () => {
+      emit('update', localItem.value);
+    }, { deep: true });
 
     return {
-      localIngredient,
-      ingredientsOptions,
-      selectedProduct,
+      localItem,
+      itemTypeOptions,
+      availableItems,
       selectedBaseUnit,
-      convertedToStorage,
-      updateIngredient
+      itemCost,
+      getItemLabel,
+      getItemDetails,
+      onTypeChange,
+      onItemSelect
     };
   }
 });

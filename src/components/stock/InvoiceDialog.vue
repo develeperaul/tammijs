@@ -456,7 +456,8 @@ export default defineComponent({
         return {
           productId: Number(item.productId),
           quantity: quantityInStorage,
-          price: priceInStorage
+          price: priceInStorage,
+          supplierId: form.value.supplierId
         };
       });
 

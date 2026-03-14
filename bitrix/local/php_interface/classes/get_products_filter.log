@@ -1,0 +1,44 @@
+========== 2026-03-04 13:37:48 ==========
+Входные параметры:
+Array
+(
+    [action] => products.get
+    [type] => all
+)
+
+Товар ID: 50, Название: кола
+  PROPERTY_IS_RESALE_VALUE: NULL
+  PROPERTY_IS_RESALE_ENUM_ID: NULL
+  isResale (вычислено): false
+  Определён тип: produced
+Товар ID: 51, Название: онигири
+  PROPERTY_IS_RESALE_VALUE: NULL
+  PROPERTY_IS_RESALE_ENUM_ID: NULL
+  isResale (вычислено): false
+  Определён тип: produced
+Статистика: всего 2 товаров, из них resale: 0, produced: 2
+Результат после фильтра: 2 товаров
+========== КОНЕЦ ==========
+
+========== 2026-03-04 13:41:58 ==========
+Входные параметры:
+Array
+(
+    [action] => products.get
+    [type] => all
+)
+
+Товар ID: 52, Название: кола
+  PROPERTY_IS_RESALE_VALUE: NULL
+  PROPERTY_IS_RESALE_ENUM_ID: NULL
+  isResale (вычислено): false
+  Определён тип: produced
+Товар ID: 53, Название: онигири
+  PROPERTY_IS_RESALE_VALUE: NULL
+  PROPERTY_IS_RESALE_ENUM_ID: NULL
+  isResale (вычислено): false
+  Определён тип: produced
+Статистика: всего 2 товаров, из них resale: 0, produced: 2
+Результат после фильтра: 2 товаров
+========== КОНЕЦ ==========
+

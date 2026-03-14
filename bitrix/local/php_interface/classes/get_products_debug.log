@@ -1,0 +1,186 @@
+========== 2026-03-04 13:29:16 ==========
+Входящие параметры:
+Array
+(
+    [action] => products.get
+    [type] => all
+)
+
+--- Товар #1 (ID: 43) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+--- Товар #2 (ID: 44) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+--- Товар #3 (ID: 45) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+--- Товар #4 (ID: 46) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+--- Товар #5 (ID: 47) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+--- Товар #6 (ID: 48) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+--- Товар #7 (ID: 49) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+Всего товаров: 7
+========== КОНЕЦ ==========
+
+========== 2026-03-04 13:30:07 ==========
+Входящие параметры:
+Array
+(
+    [action] => products.get
+    [type] => all
+)
+
+--- Товар #1 (ID: 43) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+--- Товар #2 (ID: 44) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+--- Товар #3 (ID: 45) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+--- Товар #4 (ID: 46) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+--- Товар #5 (ID: 47) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+--- Товар #6 (ID: 48) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+--- Товар #7 (ID: 49) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+Всего товаров: 7
+========== КОНЕЦ ==========
+
+========== 2026-03-04 13:33:06 ==========
+Входящие параметры:
+Array
+(
+    [action] => products.get
+    [type] => produced
+)
+
+--- Товар #1 (ID: 43) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+--- Товар #2 (ID: 44) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+--- Товар #3 (ID: 45) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+--- Товар #4 (ID: 46) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+--- Товар #5 (ID: 47) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+--- Товар #6 (ID: 48) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+--- Товар #7 (ID: 49) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+Всего товаров: 7
+Фильтр по типу 'produced': было 7, стало 7
+========== КОНЕЦ ==========
+
+========== 2026-03-04 13:33:12 ==========
+Входящие параметры:
+Array
+(
+    [action] => products.get
+    [type] => resale
+)
+
+--- Товар #1 (ID: 43) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+--- Товар #2 (ID: 44) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+--- Товар #3 (ID: 45) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+--- Товар #4 (ID: 46) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+--- Товар #5 (ID: 47) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+--- Товар #6 (ID: 48) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+--- Товар #7 (ID: 49) ---
+PROPERTY_IS_RESALE_VALUE: NULL
+PROPERTY_IS_RESALE_ENUM_ID: NULL
+isResale (вычислено): false
+Итоговый тип: produced
+Всего товаров: 7
+Фильтр по типу 'resale': было 7, стало 0
+========== КОНЕЦ ==========
+

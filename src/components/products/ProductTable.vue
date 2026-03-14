@@ -15,6 +15,7 @@
       </q-input>
 
       <q-select
+        v-if="showTypeFilter"
         :model-value="type"
         :options="typeOptions"
         outlined
@@ -65,7 +66,7 @@
       flat
       bordered
     >
-      <!-- Тип товара -->
+      <!-- Тип товара (теперь просто отображаем метку) -->
       <template v-slot:body-cell-type="props">
         <q-td :props="props">
           <q-chip :color="getTypeColor(props.value)" text-color="white" dense size="sm">
@@ -109,8 +110,11 @@
       <!-- Цены -->
       <template v-slot:body-cell-prices="props">
         <q-td :props="props">
-          <div>закуп: {{ formatMoney(props.row.costPrice) }}</div>
-          <div>продажа: {{ formatMoney(props.row.sellingPrice) }}</div>
+          <div v-if="props.row.costPrice > 0">закуп: {{ formatMoney(props.row.costPrice) }}</div>
+          <div v-if="props.row.type === 'finished'">
+            продажа: {{ formatMoney(props.row.sellingPrice) }}
+          </div>
+          <div v-else class="text-grey-5">—</div>
         </q-td>
       </template>
 
@@ -143,7 +147,8 @@ export default defineComponent({
     search: { type: String, default: '' },
     type: { type: String, default: null },
     category: { type: Number, default: null },
-    lowStock: { type: Boolean, default: false }
+    lowStock: { type: Boolean, default: false },
+    showTypeFilter: { type: Boolean, default: true }
   },
 
   emits: [
@@ -169,7 +174,6 @@ export default defineComponent({
       { name: 'type', label: 'Тип', field: 'type', align: 'center' },
       { name: 'unit', label: 'Единицы', field: 'unit', align: 'left' },
       { name: 'stock', label: 'Остаток', field: 'currentStock', align: 'left', sortable: true },
-      { name: 'minStock', label: 'Мин.', field: 'minStock', align: 'center' },
       { name: 'prices', label: 'Цены', field: 'sellingPrice', align: 'right' },
       { name: 'actions', label: 'Действия', align: 'center' }
     ];

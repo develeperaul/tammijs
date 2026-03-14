@@ -147,6 +147,7 @@ class StockService {
     documentType?: string;
     documentId?: number;
     comment?: string;
+    supplierId?: number;
   }): Promise<{ movementId: number; newStock: number }> {
     console.log('Sending to API:', data); // для отладки
 

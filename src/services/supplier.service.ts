@@ -1,5 +1,4 @@
 import { api } from 'boot/axios';
-import { ApiResponse } from 'src/types/api.types';
 import { Supplier, CreateSupplierDto } from 'src/types/supplier.types';
 
 class SupplierService {
@@ -17,7 +16,7 @@ class SupplierService {
   /**
    * Получить всех поставщиков
    */
-  async getSuppliers(): Promise< ApiResponse<Supplier[]>> {
+  async getSuppliers(): Promise<Supplier[]> {
     const response = await api.get('/index.php', {
       params: { action: 'suppliers.get' }
     });
@@ -25,7 +24,7 @@ class SupplierService {
   }
 
   /**
-   * Создать нового поставщика
+   * Создать поставщика
    */
   async createSupplier(data: CreateSupplierDto): Promise<{ id: number }> {
     const response = await api.post('/index.php', data, {
@@ -55,22 +54,26 @@ class SupplierService {
   }
 
   /**
-   * Получить историю цен поставщика по товару
+   * Получить историю цен поставщика по товару с фильтром по дате
    */
-  async getPriceHistory(supplierId: number, productId: number): Promise<any[]> {
-    const response = await api.get('/index.php', {
-      params: { action: 'supplier.price.history', supplierId, productId }
-    });
-    return response.data;
-  }
+  async getPriceHistory(
+    supplierId: number,
+    productId: number,
+    period: 'week' | 'month' | 'year' | 'all' | 'custom' = 'month',
+    startDate?: string,
+    endDate?: string
+  ): Promise<any> {
+    const params: any = {
+      action: 'supplier.price.history',
+      supplierId,
+      productId,
+      period
+    };
 
-  /**
-   * Сравнить цены поставщиков на товар
-   */
-  async comparePrices(productId: number): Promise<any[]> {
-    const response = await api.get('/index.php', {
-      params: { action: 'supplier.compare.prices', productId }
-    });
+    if (startDate) params.startDate = startDate;
+    if (endDate) params.endDate = endDate;
+
+    const response = await api.get('/index.php', { params });
     return response.data;
   }
 }

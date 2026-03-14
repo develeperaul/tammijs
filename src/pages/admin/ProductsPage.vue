@@ -3,7 +3,7 @@
     <!-- Заголовок -->
     <div class="row q-mb-md items-center">
       <div class="col-6">
-        <div class="text-h5">Товары и ингредиенты</div>
+        <div class="text-h5">Товары</div>
         <div class="text-caption text-grey-7">
           Всего позиций: {{ products.length }}
           <q-badge
@@ -20,45 +20,109 @@
           label="Добавить товар"
           icon="add"
           @click="openCreateDialog"
+          class="q-mr-sm"
+        />
+        <q-btn
+          color="secondary"
+          label="Категории"
+          icon="category"
+          @click="openCategoryManager"
         />
       </div>
     </div>
 
-    <!-- Вкладки для разделения по типам -->
+    <!-- Вкладки для разделения типов товаров -->
     <q-tabs
       v-model="activeTab"
       dense
       class="text-primary q-mb-md"
       @update:model-value="onTabChange"
     >
-      <q-tab name="all" label="Все" />
-      <q-tab name="ingredient" label="Ингредиенты" />
-      <q-tab name="finished" label="Готовые блюда" />
-      <q-tab name="semi-finished" label="Полуфабрикаты" />
+      <q-tab name="all" label="Все товары" />
+      <q-tab name="produced" label="Готовые блюда" />
+      <q-tab name="resale" label="Товары перепродажи" />
     </q-tabs>
 
     <!-- Таблица товаров -->
     <product-table
       v-model:search="filters.search"
-      v-model:type="filters.type"
       v-model:category="filters.categoryId"
       v-model:lowStock="filters.lowStock"
       :products="filteredProducts"
       :categories="categories"
       :loading="loading"
+      :show-type-filter="false"
       @edit="openEditDialog"
       @delete="confirmDelete"
       @refresh="loadProducts"
       @resetFilters="resetFilters"
     />
 
-    <!-- Диалог добавления/редактирования -->
+    <!-- Диалог добавления/редактирования товара -->
     <product-dialog
       ref="productDialog"
       :product="selectedProduct"
       :categories="categories"
       @ok="saveProduct"
       @hide="selectedProduct = null"
+    />
+
+    <!-- Диалог управления категориями -->
+    <q-dialog v-model="categoryDialog" maximized>
+      <q-card>
+        <q-card-section class="row items-center">
+          <div class="text-h6">Управление категориями</div>
+          <q-space />
+          <q-btn flat round icon="close" v-close-popup />
+        </q-card-section>
+
+        <q-card-section>
+          <div class="row q-mb-md">
+            <q-btn
+              color="primary"
+              label="Добавить категорию"
+              icon="add"
+              @click="openCreateCategoryDialog"
+            />
+          </div>
+
+          <q-table
+            :rows="categories"
+            :columns="categoryColumns"
+            row-key="id"
+            flat
+            bordered
+          >
+            <template v-slot:body-cell-actions="props">
+              <q-td :props="props">
+                <q-btn
+                  flat
+                  round
+                  dense
+                  icon="edit"
+                  @click="openEditCategoryDialog(props.row)"
+                />
+                <q-btn
+                  flat
+                  round
+                  dense
+                  icon="delete"
+                  color="negative"
+                  @click="confirmDeleteCategory(props.row)"
+                />
+              </q-td>
+            </template>
+          </q-table>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
+
+    <!-- Диалог добавления/редактирования категории -->
+    <category-dialog
+      v-model="categoryFormDialog"
+      :category="selectedCategory"
+      @ok="saveCategory"
+      @hide="selectedCategory = null"
     />
   </q-page>
 </template>
@@ -70,13 +134,15 @@ import productService from 'src/services/product.service';
 import { Product, ProductFilter, ProductCategory } from 'src/types/product.types';
 import ProductTable from 'components/products/ProductTable.vue';
 import ProductDialog from 'components/products/ProductDialog.vue';
+import CategoryDialog from 'components/categories/CategoryDialog.vue';
 
 export default defineComponent({
   name: 'ProductsPage',
 
   components: {
     ProductTable,
-    ProductDialog
+    ProductDialog,
+    CategoryDialog
   },
 
   setup() {
@@ -90,66 +156,32 @@ export default defineComponent({
     const productDialog = ref<any>(null);
     const activeTab = ref<string>('all');
 
+    // Состояние для категорий
+    const categoryDialog = ref(false);
+    const categoryFormDialog = ref(false);
+    const selectedCategory = ref<ProductCategory | null>(null);
+
     // Фильтры
     const filters = ref<ProductFilter>({
       search: '',
-      type: undefined,
       categoryId: undefined,
       lowStock: false
     });
 
-    // Обновление фильтра типа при смене вкладки
-    const onTabChange = (tab: string) => {
-      if (tab === 'all') {
-        filters.value.type = undefined;
-      } else {
-        filters.value.type = tab as any;
-      }
-    };
+    const categoryColumns = [
+      { name: 'name', label: 'Название', field: 'name', align: 'left', sortable: true },
+      { name: 'sortOrder', label: 'Сортировка', field: 'sortOrder', align: 'center', sortable: true },
+      { name: 'actions', label: 'Действия', align: 'center' }
+    ];
 
-    // Отфильтрованные товары
-    const filteredProducts = computed(() => {
-      let filtered = products.value;
-
-      if (filters.value.search) {
-        const search = filters.value.search.toLowerCase();
-        filtered = filtered.filter(p =>
-          p.name.toLowerCase().includes(search) ||
-          p.code.toLowerCase().includes(search)
-        );
-      }
-
-      if (filters.value.type) {
-        filtered = filtered.filter(p => p.type === filters.value.type);
-      }
-
-      if (filters.value.categoryId) {
-        filtered = filtered.filter(p => p.categoryId === filters.value.categoryId);
-      }
-
-      if (filters.value.lowStock) {
-        filtered = filtered.filter(p => p.currentStock <= p.minStock);
-      }
-
-      return filtered;
-    });
-
-    // Количество критических остатков
-    const lowStockCount = computed(() => {
-      return products.value.filter(p => p.currentStock <= p.minStock).length;
-    });
-
-    // Загрузка товаров
+    // Загрузка товаров с учётом выбранной вкладки
     const loadProducts = async () => {
       loading.value = true;
       try {
-        const response = await productService.getProducts();
-        products.value = response.data;
+        const type = activeTab.value === 'all' ? 'all' : activeTab.value as 'produced' | 'resale';
+        products.value = (await productService.getProducts(type, filters.value)).data;
       } catch (error) {
-        $q.notify({
-          type: 'negative',
-          message: 'Ошибка загрузки товаров'
-        });
+        $q.notify({ type: 'negative', message: 'Ошибка загрузки товаров' });
       } finally {
         loading.value = false;
       }
@@ -164,7 +196,56 @@ export default defineComponent({
       }
     };
 
-    // Открыть диалог создания
+    // Отфильтрованные товары (дополнительная фильтрация на фронте)
+    const filteredProducts = computed(() => {
+      let filtered = products.value;
+
+      if (filters.value.search) {
+        const search = filters.value.search.toLowerCase();
+        filtered = filtered.filter(p =>
+          p.name.toLowerCase().includes(search) ||
+          p.code?.toLowerCase().includes(search)
+        );
+      }
+
+      if (filters.value.categoryId) {
+        filtered = filtered.filter(p => p.categoryId === filters.value.categoryId);
+      }
+
+      if (filters.value.lowStock) {
+        filtered = filtered.filter(p =>
+          p.currentStock !== undefined && p.minStock !== undefined &&
+          p.currentStock <= p.minStock
+        );
+      }
+
+      return filtered;
+    });
+
+    // Количество критических остатков
+    const lowStockCount = computed(() => {
+      return products.value.filter(p =>
+        p.currentStock !== undefined && p.minStock !== undefined &&
+        p.currentStock <= p.minStock
+      ).length;
+    });
+
+    // Смена вкладки
+    const onTabChange = () => {
+      filters.value.categoryId = undefined;
+      loadProducts();
+    };
+
+    // Сброс фильтров
+    const resetFilters = () => {
+      filters.value = {
+        search: '',
+        categoryId: undefined,
+        lowStock: false
+      };
+    };
+
+    // Открыть диалог создания товара
     const openCreateDialog = () => {
       selectedProduct.value = null;
       setTimeout(() => {
@@ -172,7 +253,7 @@ export default defineComponent({
       }, 100);
     };
 
-    // Открыть диалог редактирования
+    // Открыть диалог редактирования товара
     const openEditDialog = (product: Product) => {
       selectedProduct.value = product;
       setTimeout(() => {
@@ -184,11 +265,9 @@ export default defineComponent({
     const saveProduct = async (formData: any) => {
       try {
         if (selectedProduct.value) {
-          // Обновление
           await productService.updateProduct(selectedProduct.value.id, formData);
           $q.notify({ type: 'positive', message: 'Товар обновлен' });
         } else {
-          // Создание
           await productService.createProduct(formData);
           $q.notify({ type: 'positive', message: 'Товар добавлен' });
         }
@@ -198,13 +277,12 @@ export default defineComponent({
       }
     };
 
-    // Подтверждение удаления
+    // Подтверждение удаления товара
     const confirmDelete = (product: Product) => {
       $q.dialog({
         title: 'Подтверждение',
         message: `Удалить товар "${product.name}"?`,
-        cancel: true,
-        persistent: true
+        cancel: true
       }).onOk(async () => {
         try {
           await productService.deleteProduct(product.id);
@@ -216,14 +294,51 @@ export default defineComponent({
       });
     };
 
-    const resetFilters = () => {
-      filters.value = {
-        search: '',
-        type: undefined,
-        categoryId: undefined,
-        lowStock: false
-      };
-      activeTab.value = 'all';
+    // Управление категориями
+    const openCategoryManager = () => {
+      categoryDialog.value = true;
+    };
+
+    const openCreateCategoryDialog = () => {
+      selectedCategory.value = null;
+      categoryFormDialog.value = true;
+    };
+
+    const openEditCategoryDialog = (category: ProductCategory) => {
+      selectedCategory.value = category;
+      categoryFormDialog.value = true;
+    };
+
+    const saveCategory = async (formData: any) => {
+      try {
+        if (selectedCategory.value) {
+          await productService.updateCategory(selectedCategory.value.id, formData);
+          $q.notify({ type: 'positive', message: 'Категория обновлена' });
+        } else {
+          await productService.createCategory(formData);
+          $q.notify({ type: 'positive', message: 'Категория добавлена' });
+        }
+        await loadCategories();
+        categoryFormDialog.value = false;
+      } catch (error) {
+        $q.notify({ type: 'negative', message: 'Ошибка сохранения категории' });
+      }
+    };
+
+    const confirmDeleteCategory = (category: ProductCategory) => {
+      $q.dialog({
+        title: 'Подтверждение',
+        message: `Удалить категорию "${category.name}"?`,
+        cancel: true
+      }).onOk(async () => {
+        try {
+          await productService.deleteCategory(category.id);
+          await loadCategories();
+          $q.notify({ type: 'positive', message: 'Категория удалена' });
+        } catch (error) {
+          $q.notify({ type: 'negative', message: 'Ошибка удаления категории' });
+        }
+      });
     };
 
     onMounted(() => {
@@ -241,13 +356,22 @@ export default defineComponent({
       filteredProducts,
       lowStockCount,
       activeTab,
+      categoryDialog,
+      categoryFormDialog,
+      selectedCategory,
+      categoryColumns,
       onTabChange,
       loadProducts,
       openCreateDialog,
       openEditDialog,
       saveProduct,
       confirmDelete,
-      resetFilters
+      resetFilters,
+      openCategoryManager,
+      openCreateCategoryDialog,
+      openEditCategoryDialog,
+      saveCategory,
+      confirmDeleteCategory
     };
   }
 });

@@ -15,6 +15,7 @@
 
       <q-card-section>
         <q-form @submit="onSubmit" class="q-gutter-md">
+          <!-- Основная информация -->
           <div class="row q-gutter-sm">
             <q-select
               v-model="form.productId"
@@ -75,7 +76,7 @@
             outlined
             dense
             type="textarea"
-            rows="3"
+            rows="2"
           />
 
           <!-- Фото -->
@@ -102,25 +103,29 @@
           <div class="text-subtitle2">Состав рецепта</div>
 
           <!-- Предварительный расчёт себестоимости -->
-          <div v-if="form.ingredients.length > 0" class="bg-grey-2 q-pa-sm rounded-borders q-mb-md">
+          <div v-if="form.items.length > 0" class="bg-grey-2 q-pa-sm rounded-borders q-mb-md">
             <div class="row justify-between">
-              <span class="text-weight-bold">Предварительная себестоимость:</span>
-              <span class="text-weight-bold text-primary">{{ formatMoney(calculateTotalCost) }}</span>
+              <span class="text-weight-bold">Себестоимость:</span>
+              <span class="text-weight-bold text-primary">{{ formatMoney(totalCost) }}</span>
             </div>
-            <div class="text-caption text-grey-7">
-              за 1 порцию ({{ form.outputWeight }} {{ form.outputUnit }})
+            <div class="row justify-between text-caption text-grey-7">
+              <span>на {{ form.outputWeight }} {{ form.outputUnit }}</span>
             </div>
           </div>
 
           <div class="q-gutter-md" style="max-height: 400px; overflow-y: auto;">
-            <recipe-ingredient-row
-              v-for="(ing, idx) in form.ingredients"
+            <div v-if="form.items.length === 0" class="text-center text-grey-7 q-pa-md">
+              Добавьте ингредиенты или полуфабрикаты в состав
+            </div>
+
+            <recipe-item-row
+              v-for="(item, idx) in form.items"
               :key="idx"
-              :ingredient="ing"
-              :ingredients-list="ingredientsList"
-              :index="idx"
-              @update:ingredient="updateIngredient"
-              @remove="removeIngredient"
+              :item="item"
+              :ingredients="ingredientsList"
+              :semi-finished="semiFinishedList"
+              @update="(updated) => updateItem(idx, updated)"
+              @remove="removeItem(idx)"
             />
           </div>
 
@@ -128,8 +133,8 @@
             flat
             color="primary"
             icon="add"
-            label="Добавить ингредиент"
-            @click="addIngredient"
+            label="Добавить ингредиент/полуфабрикат"
+            @click="addItem"
           />
         </q-form>
       </q-card-section>
@@ -150,14 +155,16 @@
 
 <script lang="ts">
 import { defineComponent, PropType, ref, computed, watch } from 'vue';
-import { Recipe, CreateRecipeDto, RecipeIngredient } from 'src/types/recipe.types';
+import { Recipe, CreateRecipeDto, RecipeItem } from 'src/types/recipe.types';
 import { Product } from 'src/types/product.types';
-import RecipeIngredientRow from './RecipeIngredientRow.vue';
+import { Ingredient } from 'src/types/ingredient.types';
+import { SemiFinished } from 'src/types/semi-finished.types';
+import RecipeItemRow from './RecipeIngredientRow.vue';
 
 export default defineComponent({
   name: 'RecipeDialog',
 
-  components: { RecipeIngredientRow },
+  components: { RecipeItemRow },
 
   props: {
     modelValue: {
@@ -173,8 +180,12 @@ export default defineComponent({
       default: () => []
     },
     ingredientsList: {
-      type: Array as PropType<Product[]>,
-      default: () => []
+      type: Array as PropType<Ingredient[]>,
+      required: true
+    },
+    semiFinishedList: {
+      type: Array as PropType<SemiFinished[]>,
+      required: true
     }
   },
 
@@ -182,7 +193,73 @@ export default defineComponent({
 
   setup(props, { emit }) {
     const photoFile = ref<File | null>(null);
-    const photoPreview = ref<string | null>(props.recipe?.photo || null);
+    const photoPreview = ref<string | null>(null);
+    const isEdit = computed(() => !!props.recipe);
+
+    const unitOptions = [
+      { label: 'грамм', value: 'г' },
+      { label: 'килограмм', value: 'кг' },
+      { label: 'штука', value: 'шт' },
+      { label: 'литр', value: 'л' },
+      { label: 'миллилитр', value: 'мл' },
+      { label: 'порция', value: 'порция' }
+    ];
+
+    const form = ref<CreateRecipeDto>({
+      productId: 0,
+      name: '',
+      outputWeight: 0,
+      outputUnit: 'г',
+      cookingTime: undefined,
+      instructions: '',
+      items: [],
+      photo: ''
+    });
+
+    const totalCost = computed(() => {
+      return form.value.items.reduce((sum, item) => {
+        if (item.itemType === 'ingredient') {
+          const ing = props.ingredientsList.find(i => i.id === item.itemId);
+          if (!ing) return sum;
+          const pricePerBaseUnit = ing.costPrice / ing.baseRatio;
+          return sum + (pricePerBaseUnit * item.quantity);
+        } else {
+          const semi = props.semiFinishedList.find(s => s.id === item.itemId);
+          if (!semi) return sum;
+          return sum + (semi.costPrice * item.quantity);
+        }
+      }, 0);
+    });
+
+    const canSubmit = computed(() => {
+  console.log('=== Проверка canSubmit ===');
+  console.log('productId:', form.value.productId);
+  console.log('name:', form.value.name);
+  console.log('outputWeight:', form.value.outputWeight);
+  console.log('outputUnit:', form.value.outputUnit);
+  console.log('items length:', form.value.items.length);
+
+  form.value.items.forEach((item, idx) => {
+    console.log(`item[${idx}]:`, {
+      itemId: item.itemId,
+      quantity: item.quantity,
+      unit: item.unit
+    });
+  });
+
+  if (!form.value.productId) return false;
+  if (!form.value.name) return false;
+  if (!form.value.outputWeight || form.value.outputWeight <= 0) return false;
+  if (!form.value.outputUnit) return false;
+  if (form.value.items.length === 0) return false;
+
+  const allValid = form.value.items.every(item =>
+    item.itemId && item.quantity > 0
+  );
+
+  console.log('allValid:', allValid);
+  return allValid;
+});
 
     const onFileSelected = (file: File | null) => {
       if (!file) {
@@ -196,59 +273,6 @@ export default defineComponent({
       reader.readAsDataURL(file);
     };
 
-    const isEdit = computed(() => !!props.recipe);
-
-    const form = ref<CreateRecipeDto>({
-      productId: 0,
-      name: '',
-      outputWeight: 0,
-      outputUnit: 'г',
-      cookingTime: undefined,
-      instructions: '',
-      ingredients: [],
-      photo: ''
-    });
-
-    const unitOptions = [
-      { label: 'грамм', value: 'г' },
-      { label: 'килограмм', value: 'кг' },
-      { label: 'штука', value: 'шт' },
-      { label: 'литр', value: 'л' },
-      { label: 'миллилитр', value: 'мл' },
-      { label: 'порция', value: 'порция' }
-    ];
-
-    const calculateTotalCost = computed(() => {
-      if (!form.value.ingredients.length) return 0;
-
-      return form.value.ingredients.reduce((total, ing) => {
-        if (!ing.ingredientId) return total;
-
-        const product = props.ingredientsList.find(p => p.id === ing.ingredientId);
-        if (!product) return total;
-
-        // Себестоимость за базовую единицу * количество
-        const costPerBaseUnit = product.costPrice / (product.baseRatio || 1);
-        return total + (costPerBaseUnit * ing.quantity);
-      }, 0);
-    });
-
-    const canSubmit = computed(() => {
-      // Проверяем основные поля
-      if (!form.value.productId) return false;
-      if (!form.value.name) return false;
-      if (!form.value.outputWeight || form.value.outputWeight <= 0) return false;
-      if (!form.value.outputUnit) return false;
-
-      // Проверяем ингредиенты
-      if (form.value.ingredients.length === 0) return false;
-
-      return form.value.ingredients.every(ing =>
-        ing.ingredientId && ing.quantity > 0 && ing.unit
-      );
-    });
-
-    // Заполнение формы при редактировании
     watch(() => props.recipe, (val) => {
       if (val) {
         form.value = {
@@ -258,11 +282,12 @@ export default defineComponent({
           outputUnit: val.outputUnit,
           cookingTime: val.cookingTime,
           instructions: val.instructions || '',
-          ingredients: val.ingredients.map(ing => ({
-            ingredientId: ing.ingredientId,
-            quantity: ing.quantity,
-            unit: ing.unit,
-            isOptional: ing.isOptional
+          items: val.items.map(item => ({
+            itemType: item.itemType,
+            itemId: item.itemId,
+            quantity: item.quantity,
+            unit: item.unit,
+            isOptional: item.isOptional
           })),
           photo: val.photo || ''
         };
@@ -275,45 +300,32 @@ export default defineComponent({
           outputUnit: 'г',
           cookingTime: undefined,
           instructions: '',
-          ingredients: [],
+          items: [],
           photo: ''
         };
         photoPreview.value = null;
       }
     }, { immediate: true });
 
-    const addIngredient = () => {
-      form.value.ingredients.push({
-        ingredientId: 0,
+    const addItem = () => {
+      form.value.items.push({
+        itemType: 'ingredient',
+        itemId: 0,
         quantity: 1,
         unit: 'г',
         isOptional: false
       });
     };
 
-    const removeIngredient = (index: number) => {
-      form.value.ingredients.splice(index, 1);
+    const removeItem = (index: number) => {
+      form.value.items.splice(index, 1);
     };
 
-    const updateIngredient = (index: number, updatedIng: Partial<RecipeIngredient>) => {
-      // Обновляем ингредиент
-      form.value.ingredients[index] = {
-        ...form.value.ingredients[index],
-        ...updatedIng
-      };
-
-      // Если изменился ingredientId, обновляем единицу измерения по умолчанию
-      if (updatedIng.ingredientId) {
-        const product = props.ingredientsList.find(p => p.id === updatedIng.ingredientId);
-        if (product) {
-          // Устанавливаем базовую единицу товара как единицу по умолчанию
-          form.value.ingredients[index].unit = product.baseUnit || 'г';
-        }
-      }
+    const updateItem = (index: number, updatedItem: RecipeItem) => {
+      form.value.items[index] = updatedItem;
     };
 
     const onSubmit = () => {
-      if (!canSubmit.value) return;
       emit('ok', form.value);
       emit('update:modelValue', false);
     };
@@ -334,16 +346,16 @@ export default defineComponent({
       isEdit,
       form,
       unitOptions,
-      calculateTotalCost,
+      totalCost,
       canSubmit,
-      addIngredient,
-      removeIngredient,
-      updateIngredient,
-      onSubmit,
-      onCancel,
       photoFile,
       photoPreview,
       onFileSelected,
+      addItem,
+      removeItem,
+      updateItem,
+      onSubmit,
+      onCancel,
       formatMoney
     };
   }

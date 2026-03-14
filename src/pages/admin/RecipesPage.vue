@@ -1,8 +1,9 @@
 <template>
   <q-page class="q-pa-md">
+    <!-- Заголовок -->
     <div class="row q-mb-md items-center">
       <div class="col-6">
-        <div class="text-h5">Технологические карты (рецептуры)</div>
+        <div class="text-h5">Рецепты</div>
         <div class="text-caption text-grey-7">
           Всего рецептов: {{ recipes.length }}
         </div>
@@ -24,6 +25,7 @@
       :recipe="selectedRecipe"
       :finished-products="finishedProducts"
       :ingredients-list="ingredientsList"
+      :semi-finished-list="semiFinishedList"
       @ok="saveRecipe"
       @hide="selectedRecipe = null"
     />
@@ -35,10 +37,14 @@ import { defineComponent, ref, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import recipeService from 'src/services/recipe.service';
 import productService from 'src/services/product.service';
+import ingredientService from 'src/services/ingredient.service';
+import semiFinishedService from 'src/services/semi-finished.service';
 import { Recipe } from 'src/types/recipe.types';
-import { Product } from 'src/types/product.types';
 import RecipeTable from 'components/recipes/RecipeTable.vue';
 import RecipeDialog from 'components/recipes/RecipeDialog.vue';
+import { Product } from 'src/types/product.types';
+import { Ingredient } from 'src/types/ingredient.types';
+import { SemiFinished } from 'src/types/semi-finished.types';
 
 export default defineComponent({
   name: 'RecipesPage',
@@ -52,18 +58,14 @@ export default defineComponent({
     const dialog = ref(false);
     const selectedRecipe = ref<Recipe | null>(null);
     const finishedProducts = ref<Product[]>([]);
-    const ingredientsList = ref<Product[]>([]);
+    const ingredientsList = ref<Ingredient[]>([]);
+    const semiFinishedList = ref<SemiFinished[]>([]);
 
     const loadRecipes = async () => {
       loading.value = true;
       try {
         recipes.value = (await recipeService.getRecipes()).data;
-
-        console.log(recipes.value);
-
       } catch (error) {
-        console.log(error);
-
         $q.notify({ type: 'negative', message: 'Ошибка загрузки рецептов' });
       } finally {
         loading.value = false;
@@ -72,13 +74,19 @@ export default defineComponent({
 
     const loadProducts = async () => {
       try {
-        const all = (await productService.getProducts()).data;
-        finishedProducts.value = all.filter(p => p.type === 'finished');
-        ingredientsList.value = all.filter(p => p.type === 'ingredient');
+        const [products, ingredients, semi] = await Promise.all([
+          (await productService.getProducts()).data,
+          (await ingredientService.getAll()).data,
+          (await semiFinishedService.getAll()).data
+        ]);
+        finishedProducts.value = products;
+        ingredientsList.value = ingredients;
+        semiFinishedList.value = semi;
       } catch (error) {
         $q.notify({ type: 'negative', message: 'Ошибка загрузки товаров' });
       }
     };
+
 
     const openCreateDialog = () => {
       selectedRecipe.value = null;
@@ -135,6 +143,7 @@ export default defineComponent({
       selectedRecipe,
       finishedProducts,
       ingredientsList,
+      semiFinishedList,
       openCreateDialog,
       openEditDialog,
       saveRecipe,

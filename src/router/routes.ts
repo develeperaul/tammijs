@@ -13,6 +13,8 @@ const routes: RouteRecordRaw[] = [
     children: [
       { path: '', component: () => import('pages/TestPage.vue') },
       { path: 'products', component: () => import('pages/admin/ProductsPage.vue') },
+      { path: 'ingredients', component: () => import('pages/admin/IngredientsPage.vue') },
+      { path: 'semi-finished', component: () => import('pages/admin/SemiFinishedPage.vue') },
       { path: 'stock', component: () => import('pages/admin/StockPage.vue') },
       { path: '/sss', component: () => import('pages/ApiTestPage.vue') },
       { path: '/apitest', component: () => import('pages/TestPage.vue') },
@@ -21,6 +23,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'sale', component: () => import('pages/employee/SalePage.vue') },
       { path: 'kitchen', component: () => import('pages/employee/KitchenPage.vue') },
       { path: 'reports', component: () => import('pages/admin/ReportsPage.vue') },
+      { path: 'suppliers', component: () => import('pages/admin/SuppliersPage.vue') },
     ],
   },
 

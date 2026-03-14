@@ -1,28 +1,32 @@
-import { Product } from './product.types';
+import { Ingredient } from './ingredient.types';
+import { SemiFinished } from './semi-finished.types';
+
+export type RecipeItemType = 'ingredient' | 'semi-finished';
+
+export interface RecipeItem {
+  id?: number;
+  itemType: RecipeItemType;     // тип: ингредиент или полуфабрикат
+  itemId: number;               // ID ингредиента или полуфабриката
+  itemName?: string;            // название для отображения
+  quantity: number;             // количество
+  unit: string;                 // единица измерения
+  isOptional?: boolean;         // опциональный ингредиент
+  cost?: number;                // расчётная стоимость
+}
 
 export interface Recipe {
   id: number;
-  productId: number;           // готовое блюдо, к которому относится рецепт
-  productName?: string;        // для отображения
-  name: string;                // название рецепта (может совпадать с названием товара)
-  outputWeight: number;        // выход готового блюда (в граммах или штуках)
-  outputUnit: string;          // единица измерения (г, шт, мл)
-  cookingTime?: number;        // время приготовления в минутах
-  instructions?: string;       // текстовое описание процесса
-  ingredients: RecipeIngredient[];
+  productId: number;            // готовое блюдо
+  productName?: string;
+  name: string;                 // название рецепта
+  outputWeight: number;         // выход блюда
+  outputUnit: string;           // единица измерения
+  cookingTime?: number;
+  instructions?: string;
+  items: RecipeItem[];          // ингредиенты и полуфабрикаты
+  photo?: string | null;
   createdAt?: string;
   updatedAt?: string;
-}
-
-export interface RecipeIngredient {
-  id?: number;
-  recipeId?: number;
-  ingredientId: number;        // товар-ингредиент (сырьё)
-  ingredientName?: string;     // для отображения
-  quantity: number;            // количество ингредиента на одну порцию
-  unit: string;                // единица измерения ингредиента (кг, г, шт, л)
-  isOptional?: boolean;        // опциональный ингредиент (например, можно убрать)
-  cost?: number;               // расчётная стоимость ингредиента в данной порции (для информации)
 }
 
 export interface CreateRecipeDto {
@@ -32,6 +36,6 @@ export interface CreateRecipeDto {
   outputUnit: string;
   cookingTime?: number;
   instructions?: string;
-  ingredients: Omit<RecipeIngredient, 'id' | 'recipeId'>[];
-  photo: string
+  items: Omit<RecipeItem, 'id' | 'itemName' | 'cost'>[];
+  photo?: string;
 }
