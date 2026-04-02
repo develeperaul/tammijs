@@ -66,12 +66,21 @@
       flat
       bordered
     >
-      <!-- Индикатор остатка с базовыми единицами -->
+      <!-- Тип товара -->
+      <template v-slot:body-cell-type="props">
+        <q-td :props="props">
+          <q-chip :color="getTypeColor(props.value)" text-color="white" dense size="sm">
+            {{ getTypeLabel(props.value) }}
+          </q-chip>
+        </q-td>
+      </template>
+
+      <!-- Остаток (с базовыми единицами для ингредиентов) -->
       <template v-slot:body-cell-stock="props">
         <q-td :props="props">
           <div class="row items-center">
             <q-badge :color="getStockColor(props.row)" class="q-mr-sm">
-              {{ props.row.currentStock }} {{ props.row.unit }}
+              {{ props.row.currentStock }} {{ props.row.unit || '' }}
             </q-badge>
             <q-icon
               v-if="props.row.currentStock <= props.row.minStock"
@@ -82,26 +91,37 @@
               <q-tooltip>Критический остаток</q-tooltip>
             </q-icon>
           </div>
-          <div class="text-caption text-grey-7">
+          <div v-if="props.row.baseUnit" class="text-caption text-grey-7">
             {{ (props.row.currentStock * (props.row.baseRatio || 1)).toFixed(0) }} {{ props.row.baseUnit }}
           </div>
         </q-td>
       </template>
 
-      <!-- Себестоимость (за базовую единицу и за единицу хранения) -->
+      <!-- Себестоимость -->
       <template v-slot:body-cell-cost="props">
         <q-td :props="props">
-          <div>{{ formatMoney(props.row.costPrice) }} / {{ props.row.unit }}</div>
-          <div class="text-caption text-grey-7">
-            {{ formatMoney(props.row.costPrice / (props.row.baseRatio || 1)) }} / {{ props.row.baseUnit }}
+          <div v-if="props.row.type === 'ingredient'">
+            {{ formatMoney(props.row.costPrice) }} / {{ props.row.unit }}
+            <div class="text-caption text-grey-7">
+              {{ formatMoney(props.row.costPrice / (props.row.baseRatio || 1)) }} / {{ props.row.baseUnit }}
+            </div>
+          </div>
+          <div v-else-if="props.row.type === 'resale'">
+            {{ formatMoney(props.row.costPrice) }} / {{ props.row.unit }}
+          </div>
+          <div v-else-if="props.row.type === 'semi-finished'">
+            {{ formatMoney(props.row.costPrice) }} / {{ props.row.unit }}
+          </div>
+          <div v-else class="text-grey-5">
+            из рецепта
           </div>
         </q-td>
       </template>
 
-      <!-- Цена продажи (только для готовых товаров) -->
+      <!-- Цена продажи -->
       <template v-slot:body-cell-price="props">
         <q-td :props="props">
-          <div v-if="props.row.type === 'finished'">
+          <div v-if="props.row.type === 'finished' || props.row.type === 'resale' || props.row.type === 'semi-finished'">
             {{ formatMoney(props.row.sellingPrice) }}
           </div>
           <div v-else class="text-grey-5">
@@ -113,8 +133,8 @@
       <!-- Минимальный остаток -->
       <template v-slot:body-cell-minStock="props">
         <q-td :props="props">
-          <div>{{ props.row.minStock }} {{ props.row.unit }}</div>
-          <div class="text-caption text-grey-7">
+          <div>{{ props.row.minStock }} {{ props.row.unit || '' }}</div>
+          <div v-if="props.row.baseUnit" class="text-caption text-grey-7">
             {{ (props.row.minStock * (props.row.baseRatio || 1)).toFixed(0) }} {{ props.row.baseUnit }}
           </div>
         </q-td>
@@ -162,40 +182,32 @@
 <script lang="ts">
 import { defineComponent, PropType } from 'vue';
 import { Product } from 'src/types/product.types';
+import { Ingredient } from 'src/types/ingredient.types';
 import { ProductCategory } from 'src/types/product.types';
+
+// Объединяем типы для совместимости
+type StockItem = (Product | Ingredient) & {
+  type: string;
+  unit?: string;
+  baseUnit?: string;
+  baseRatio?: number;
+  costPrice?: number;
+  sellingPrice?: number;
+  currentStock: number;
+  minStock: number;
+};
 
 export default defineComponent({
   name: 'StockTable',
 
   props: {
-    items: {
-      type: Array as PropType<Product[]>,
-      required: true
-    },
-    categories: {
-      type: Array as PropType<ProductCategory[]>,
-      default: () => []
-    },
-    loading: {
-      type: Boolean,
-      default: false
-    },
-    search: {
-      type: String,
-      default: ''
-    },
-    typeFilter: {
-      type: String,
-      default: null
-    },
-    categoryFilter: {
-      type: Number,
-      default: null
-    },
-    lowStockFilter: {
-      type: Boolean,
-      default: false
-    }
+    items: { type: Array as PropType<StockItem[]>, required: true },
+    categories: { type: Array as PropType<ProductCategory[]>, default: () => [] },
+    loading: { type: Boolean, default: false },
+    search: { type: String, default: '' },
+    typeFilter: { type: String, default: null },
+    categoryFilter: { type: Number, default: null },
+    lowStockFilter: { type: Boolean, default: false }
   },
 
   emits: [
@@ -214,7 +226,8 @@ export default defineComponent({
     const typeOptions = [
       { label: 'Ингредиент', value: 'ingredient' },
       { label: 'Готовый', value: 'finished' },
-      { label: 'Полуфабрикат', value: 'semi-finished' }
+      { label: 'Полуфабрикат', value: 'semi-finished' },
+      { label: 'Товар перепродажи', value: 'resale' }
     ];
 
     const columns = [
@@ -227,13 +240,34 @@ export default defineComponent({
       { name: 'actions', label: 'Действия', align: 'center' }
     ];
 
-    const getStockColor = (product: Product): string => {
-      if (product.currentStock <= 0) return 'negative';
-      if (product.currentStock <= product.minStock) return 'warning';
+    const getTypeColor = (type: string): string => {
+      const colors: Record<string, string> = {
+        ingredient: 'blue',
+        finished: 'green',
+        'semi-finished': 'orange',
+        resale: 'purple'
+      };
+      return colors[type] || 'grey';
+    };
+
+    const getTypeLabel = (type: string): string => {
+      const labels: Record<string, string> = {
+        ingredient: 'Ингредиент',
+        finished: 'Готовый',
+        'semi-finished': 'Полуфабрикат',
+        resale: 'Перепродажа'
+      };
+      return labels[type] || type;
+    };
+
+    const getStockColor = (item: StockItem): string => {
+      if (item.currentStock <= 0) return 'negative';
+      if (item.currentStock <= item.minStock) return 'warning';
       return 'positive';
     };
 
     const formatMoney = (value: number): string => {
+      if (value === undefined || value === null) return '—';
       return new Intl.NumberFormat('ru-RU', {
         style: 'currency',
         currency: 'RUB',
@@ -244,6 +278,8 @@ export default defineComponent({
     return {
       typeOptions,
       columns,
+      getTypeColor,
+      getTypeLabel,
       getStockColor,
       formatMoney
     };

@@ -102,12 +102,12 @@
           bordered
           hide-pagination
         >
-          <!-- Выбор товара -->
+          <!-- Выбор товара (только ингредиенты и товары перепродажи) -->
           <template v-slot:body-cell-product="props">
             <q-td :props="props">
               <q-select
                 :model-value="getProductById(props.row.productId)"
-                :options="products"
+                :options="availableProducts"
                 option-label="name"
                 label="Товар"
                 outlined
@@ -120,10 +120,13 @@
                     <q-item-section>
                       <q-item-label>{{ scope.opt.name }}</q-item-label>
                       <q-item-label caption>
-                        Остаток: {{ scope.opt.currentStock }} {{ scope.opt.unit }}
-                        <br>
-                        <span class="text-grey-7">
+                        <span v-if="scope.opt.type === 'ingredient'">
+                          Ингредиент | Остаток: {{ scope.opt.currentStock }} {{ scope.opt.unit }}
+                          <br>
                           1 {{ scope.opt.unit }} = {{ scope.opt.baseRatio }} {{ scope.opt.baseUnit }}
+                        </span>
+                        <span v-else>
+                          Товар перепродажи | Остаток: {{ scope.opt.currentStock }} {{ scope.opt.unit }}
                         </span>
                       </q-item-label>
                     </q-item-section>
@@ -283,6 +286,13 @@ export default defineComponent({
       { name: 'actions', label: '', align: 'center' }
     ];
 
+    // ✅ Фильтруем товары: только ингредиенты и товары перепродажи
+    const availableProducts = computed(() => {
+      return props.products.filter(p =>
+        p.type === 'ingredient' || p.type === 'resale'
+      );
+    });
+
     const totalAmount = computed(() => {
       return form.value.items.reduce((sum, item) => {
         return sum + (Number(item.price) || 0) * (Number(item.quantity) || 0);
@@ -339,7 +349,7 @@ export default defineComponent({
     const onSupplierCreated = async (supplierData: any) => {
       try {
         const result = await supplierService.createSupplier(supplierData);
-        await loadSuppliers(); // Перезагружаем список поставщиков
+        await loadSuppliers();
         form.value.supplierId = result.id;
         supplierDialog.value = false;
       } catch (error) {
@@ -349,7 +359,7 @@ export default defineComponent({
 
     const getProductById = (id: number | null) => {
       if (!id) return null;
-      return props.products.find(p => p.id === id) || null;
+      return availableProducts.value.find(p => p.id === id) || null;
     };
 
     const getProductRatio = (productId: number | null): number => {
@@ -374,7 +384,7 @@ export default defineComponent({
     };
 
     const show = () => {
-      loadSuppliers(); // Загружаем при каждом открытии
+      loadSuppliers();
       dialog.value?.show();
     };
 
@@ -407,7 +417,13 @@ export default defineComponent({
       }
 
       item.productId = selectedProduct.id;
-      item.price = (selectedProduct.costPrice || 0) / (selectedProduct.baseRatio || 1);
+      // Для ингредиентов подставляем цену за базовую единицу
+      if (selectedProduct.type === 'ingredient') {
+        item.price = (selectedProduct.costPrice || 0) / (selectedProduct.baseRatio || 1);
+      } else {
+        // Для товаров перепродажи — цена за единицу хранения
+        item.price = selectedProduct.costPrice || 0;
+      }
       item.unitType = 'baseUnit';
     };
 
@@ -492,7 +508,6 @@ export default defineComponent({
       }).format(value);
     };
 
-    // Загружаем поставщиков при создании компонента
     onMounted(() => {
       loadSuppliers();
     });
@@ -504,6 +519,7 @@ export default defineComponent({
       suppliers,
       filteredSuppliers,
       loadingSuppliers,
+      availableProducts,
       columns,
       unitTypeOptions,
       totalAmount,

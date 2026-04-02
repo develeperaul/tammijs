@@ -9,6 +9,13 @@
       </div>
       <div class="col-6 text-right">
         <q-btn color="primary" label="Добавить" icon="add" @click="openCreateDialog" />
+        <q-btn
+          color="positive"
+          label="Производство"
+          icon="factory"
+          @click="openProduceDialog"
+          class="q-mr-sm"
+        />
       </div>
     </div>
 
@@ -39,12 +46,30 @@
       </template>
     </base-table>
 
-    <semi-finished-dialog
+    <!-- <semi-finished-dialog
       v-model="dialog"
       :item="selectedItem"
       :ingredients-list="ingredientsList"
       @ok="saveItem"
       @hide="selectedItem = null"
+    /> -->
+
+    <semi-finished-dialog
+      v-model="dialog"
+      :item="selectedItem"
+      :ingredients-list="ingredientsList"
+      :semi-finished-list="items"
+      @ok="saveItem"
+      @hide="selectedItem = null"
+    />
+
+     <produce-dialog
+      v-model="produceDialog"
+      :semi-finished-list="items"
+      :ingredients-list="ingredientsList"
+      :waste-products="items"
+      @produced="onProduced"
+      @hide="produceDialog = false"
     />
   </q-page>
 </template>
@@ -56,11 +81,13 @@ import semiFinishedService from 'src/services/semi-finished.service';
 import ingredientService from 'src/services/ingredient.service';
 import BaseTable from 'components/common/BaseTable.vue';
 import SemiFinishedDialog from 'components/semi-finished/SemiFinishedDialog.vue';
+import ProduceDialog from 'components/semi-finished/ProduceDialog.vue';
+
 
 export default defineComponent({
   name: 'SemiFinishedPage',
 
-  components: { BaseTable, SemiFinishedDialog },
+  components: { BaseTable, SemiFinishedDialog,ProduceDialog },
 
   setup() {
     const $q = useQuasar();
@@ -103,6 +130,8 @@ export default defineComponent({
     };
 
     const loadIngredients = async () => {
+      console.log(';ff');
+
       try {
         ingredientsList.value = (await ingredientService.getAll()).data;
       } catch (error) {
@@ -126,7 +155,7 @@ export default defineComponent({
           await semiFinishedService.update(selectedItem.value.id, formData);
           $q.notify({ type: 'positive', message: 'Полуфабрикат обновлён' });
         } else {
-          await semiFinishedService.create(formData);
+          await semiFinishedService.create(formData);  // ← formData уже преобразован
           $q.notify({ type: 'positive', message: 'Полуфабрикат добавлен' });
         }
         await loadItems();
@@ -164,6 +193,13 @@ export default defineComponent({
       }).format(value);
     };
 
+    const produceDialog = ref(false);
+    const openProduceDialog = () => { produceDialog.value = true; };
+    const onProduced = (data) => {
+      // Обновить список полуфабрикатов, перезагрузить
+      loadItems();
+    };
+
     onMounted(() => {
       loadItems();
       loadIngredients();
@@ -184,7 +220,8 @@ export default defineComponent({
       saveItem,
       confirmDelete,
       resetFilters,
-      formatMoney
+      formatMoney,
+      produceDialog, openProduceDialog, onProduced
     };
   }
 });

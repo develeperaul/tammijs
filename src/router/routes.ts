@@ -24,6 +24,9 @@ const routes: RouteRecordRaw[] = [
       { path: 'kitchen', component: () => import('pages/employee/KitchenPage.vue') },
       { path: 'reports', component: () => import('pages/admin/ReportsPage.vue') },
       { path: 'suppliers', component: () => import('pages/admin/SuppliersPage.vue') },
+      { path: 'production-history', component: () => import('pages/admin/ProductionHistoryPage.vue') },
+      { path: 'semi-recipes', component: () => import('pages/admin/SemiRecipesPage.vue') }
+
     ],
   },
 

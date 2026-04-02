@@ -47,6 +47,19 @@
           </q-item-section>
         </q-item>
 
+        <q-item clickable v-ripple to="/production-history" exact>
+          <q-item-section avatar>
+            <q-icon name="history" />
+          </q-item-section>
+          <q-item-section>
+            История производства
+          </q-item-section>
+        </q-item>
+        <q-item clickable v-ripple to="/semi-recipes" exact>
+          <q-item-section avatar><q-icon name="receipt" /></q-item-section>
+          <q-item-section>Рецепты полуфабрикатов</q-item-section>
+        </q-item>
+
         <q-item clickable v-ripple to="/products" exact>
           <q-item-section avatar>
             <q-icon name="restaurant_menu" />

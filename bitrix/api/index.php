@@ -16,6 +16,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 // Подключаем ядро Битрикса
 require_once($_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php');
 
+// Включение логирования ошибок
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+ini_set('log_errors', 1);
+ini_set('error_log', $_SERVER['DOCUMENT_ROOT'] . '/php_errors.log');
+
 // Проверяем токен (задайте свой секретный ключ)
 $validToken = '29ad95e3891520df0823341bf53f77e4e5b3f6c6e3792baa3bb9bc94a4b601d9'; // ЗАМЕНИТЕ НА СВОЙ КЛЮЧ
 $headers = getallheaders();
@@ -71,6 +77,8 @@ $routes = [
     'product.update'    => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'updateProduct']],
     'product.delete'    => ['method' => 'DELETE', 'callback' => ['CustomRestMethods', 'deleteProduct']],
     
+    'production.history'  => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getProductionHistory']],
+'production.revert'   => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'revertProduction']],
     // Категории
     'categories.get'    => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getCategories']],
     'category.create'   => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'createCategory']],
@@ -83,11 +91,18 @@ $routes = [
     'ingredient.update' => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'updateIngredient']],
     'ingredient.delete' => ['method' => 'DELETE', 'callback' => ['CustomRestMethods', 'deleteIngredient']],
 
+    // Категории ингредиентов
+    'ingredient.categories.get'    => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getIngredientCategories']],
+    'ingredient.category.create'   => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'createIngredientCategory']],
+    'ingredient.category.update'   => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'updateIngredientCategory']],
+    'ingredient.category.delete'   => ['method' => 'DELETE', 'callback' => ['CustomRestMethods', 'deleteIngredientCategory']],
+
     // ===== ПОЛУФАБРИКАТЫ =====
     'semi.get'          => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getSemiFinished']],
     'semi.create'       => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'createSemiFinished']],
     'semi.update'       => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'updateSemiFinished']],
     'semi.delete'       => ['method' => 'DELETE', 'callback' => ['CustomRestMethods', 'deleteSemiFinished']],
+    'semi.produce'        => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'produceSemiFinished']],
 
     // ===== РЕЦЕПТЫ =====
     'recipes.get'       => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getRecipes']],
@@ -116,6 +131,12 @@ $routes = [
 
     // ===== КУХНЯ =====
     'kitchen.orders'    => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getKitchenOrders']],
+
+    // Рецепты полуфабрикатов
+    'semi.recipes.get'     => ['method' => 'GET',    'callback' => ['CustomRestMethods', 'getSemiRecipes']],
+    'semi.recipe.create'   => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'createSemiRecipe']],
+    'semi.recipe.update'   => ['method' => 'POST',   'callback' => ['CustomRestMethods', 'updateSemiRecipe']],
+    'semi.recipe.delete'   => ['method' => 'DELETE', 'callback' => ['CustomRestMethods', 'deleteSemiRecipe']],
 ];
 
 if (!isset($routes[$action])) {

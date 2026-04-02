@@ -73,8 +73,9 @@
             <semi-ingredient-row
               v-for="(ing, idx) in form.ingredients"
               :key="idx"
-              :ingredient="ing"
+              :item="ing"
               :ingredients="ingredientsList"
+              :semi-finished="semiFinishedList"
               @update="(updated) => updateIngredient(idx, updated)"
               @remove="removeIngredient(idx)"
             />
@@ -116,18 +117,10 @@ export default defineComponent({
   components: { SemiIngredientRow },
 
   props: {
-    modelValue: {
-      type: Boolean,
-      required: true
-    },
-    item: {
-      type: Object as PropType<SemiFinished | null>,
-      default: null
-    },
-    ingredientsList: {
-      type: Array as PropType<Ingredient[]>,
-      required: true
-    }
+    modelValue: { type: Boolean, required: true },
+    item: { type: Object as PropType<SemiFinished | null>, default: null },
+    ingredientsList: { type: Array as PropType<Ingredient[]>, required: true },
+    semiFinishedList: { type: Array as PropType<SemiFinished[]>, default: () => [] }
   },
 
   emits: ['update:modelValue', 'ok', 'hide'],
@@ -138,6 +131,8 @@ export default defineComponent({
     const unitOptions = [
       { label: 'кг (килограмм)', value: 'кг' },
       { label: 'шт (штука)', value: 'шт' },
+      { label: 'л (литр)', value: 'л' },
+      { label: 'мл (миллилитр)', value: 'мл' },
       { label: 'уп (упаковка)', value: 'уп' }
     ];
 
@@ -146,17 +141,25 @@ export default defineComponent({
       unit: 'шт',
       sellingPrice: 0,
       ingredients: [] as Array<{
-        ingredientId: number;
+        itemType: 'ingredient' | 'semi-finished';
+        itemId: number;
         quantity: number;
+        unit: string;
       }>
     });
 
     const totalCost = computed(() => {
       return form.value.ingredients.reduce((sum, ing) => {
-        const ingredient = props.ingredientsList.find(i => i.id === ing.ingredientId);
-        if (!ingredient) return sum;
-        const pricePerBaseUnit = ingredient.costPrice / ingredient.baseRatio;
-        return sum + (pricePerBaseUnit * ing.quantity);
+        if (ing.itemType === 'ingredient') {
+          const ingredient = props.ingredientsList.find(i => i.id === ing.itemId);
+          if (!ingredient) return sum;
+          const pricePerBaseUnit = ingredient.costPrice / ingredient.baseRatio;
+          return sum + (pricePerBaseUnit * ing.quantity);
+        } else {
+          const semi = props.semiFinishedList.find(s => s.id === ing.itemId);
+          if (!semi) return sum;
+          return sum + (semi.costPrice * ing.quantity);
+        }
       }, 0);
     });
 
@@ -168,53 +171,75 @@ export default defineComponent({
     const canSubmit = computed(() => {
       if (!form.value.name || !form.value.unit) return false;
       if (form.value.ingredients.length === 0) return false;
+
       return form.value.ingredients.every(ing =>
-        ing.ingredientId && ing.quantity > 0
+        ing.itemId && ing.itemId !== 0 && ing.quantity > 0
       );
     });
 
-    // Заполняем форму при редактировании
-    watch(() => props.item, (val) => {
-      if (val) {
-        console.log('Редактирование полуфабриката:', val); // для отладки
-
-        form.value = {
-          name: val.name,
-          unit: val.unit || 'шт',
-          sellingPrice: val.sellingPrice || 0,
-          ingredients: (val.ingredients || []).map(ing => ({
-            ingredientId: ing.ingredientId,
-            quantity: ing.quantity
-          }))
-        };
-      } else {
-        form.value = {
-          name: '',
-          unit: 'шт',
-          sellingPrice: 0,
-          ingredients: []
-        };
-      }
-    }, { immediate: true });
-
     const addIngredient = () => {
       form.value.ingredients.push({
-        ingredientId: 0,
-        quantity: 1
+        itemType: 'ingredient',
+        itemId: 0,
+        quantity: 1,
+        unit: ''
       });
     };
 
     const removeIngredient = (index: number) => {
-      form.value.ingredients.splice(index, 1);
+      form.value.ingredients = form.value.ingredients.filter((_, i) => i !== index);
     };
 
-    const updateIngredient = (index: number, updatedIng: any) => {
-      form.value.ingredients[index] = updatedIng;
+    const updateIngredient = (index: number, updated: any) => {
+      const newIngredients = [...form.value.ingredients];
+      newIngredients[index] = updated;
+      form.value.ingredients = newIngredients;
     };
+
+    // Заполнение при редактировании
+    watch(() => props.item, (val) => {
+  console.log('Editing item (raw):', JSON.parse(JSON.stringify(val))); // отладка
+
+  if (val) {
+    form.value = {
+      name: val.name,
+      unit: val.unit || 'шт',
+      sellingPrice: val.sellingPrice || 0,
+      ingredients: (val.ingredients || []).map(ing => ({
+        itemType: ing.itemType || 'ingredient',
+        // ✅ ключевое исправление: ingredientId → itemId
+        itemId: ing.ingredientId || ing.itemId || 0,
+        quantity: ing.quantity,
+        unit: ing.unit || ''
+      }))
+    };
+    console.log('Form ingredients after mapping:', form.value.ingredients);
+  } else {
+    form.value = {
+      name: '',
+      unit: 'шт',
+      sellingPrice: 0,
+      ingredients: []
+    };
+  }
+}, { immediate: true, deep: true });
 
     const onSubmit = () => {
-      console.log('Сохранение полуфабриката:', form.value); // для отладки
-      emit('ok', form.value);
+      const dataToSend = {
+        name: form.value.name,
+        unit: form.value.unit,
+        sellingPrice: form.value.sellingPrice,
+        ingredients: form.value.ingredients
+          .filter(ing => ing.itemId && ing.itemId !== 0)
+          .map(ing => ({
+            ingredientId: ing.itemId,
+            quantity: ing.quantity,
+            unit: ing.unit,
+            itemType: ing.itemType
+          }))
+      };
+
+      emit('ok', dataToSend);
       emit('update:modelValue', false);
     };
 

@@ -1,60 +1,26 @@
-export type InvoiceStatus = 'draft' | 'confirmed' | 'cancelled';
-
-export interface Invoice {
-  id: number;
-  supplier: string;
-  number: string;
-  date: string;
-  totalAmount: number;
-  status: InvoiceStatus;
-  photoId?: number;
-  photoUrl?: string;
-  aiProcessed: boolean;
-  createdBy: number;
-  createdAt: string;
-  items: InvoiceItem[];
-}
+import { Ingredient } from './ingredient.types';
+import { Supplier } from './supplier.types';
 
 export interface InvoiceItem {
   id: number;
-  invoiceId: number;
-  productId: number;
-  productName?: string;
+  ingredientId: number;
+  ingredientName: string;
   quantity: number;
   price: number;
   amount: number;
+  unit: string;
+  baseUnit?: string;
+  baseRatio?: number;
 }
 
-export interface CreateInvoiceDto {
-  supplier: string;
+export interface Invoice {
+  id: number;
   number: string;
   date: string;
-  items: {
-    productId: number;
-    quantity: number;
-    price: number;
-  }[];
-}
-
-export interface AIRecognizedItem {
-  recognizedName: string;
-  quantity: number;
-  price: number;
-  unit: string;
-  confidence: number;
-  matches?: ProductMatch[];
-}
-
-export interface ProductMatch {
-  productId: number;
-  productName: string;
-  similarity: number;
-}
-
-export interface AIRecognizeResponse {
-  success: boolean;
-  photoId: number;
-  photoUrl: string;
-  recognized: AIRecognizedItem[];
+  supplierId: number;
+  supplierName?: string;
   totalAmount: number;
+  items: InvoiceItem[];
+  status: 'draft' | 'confirmed';
+  createdAt: string;
 }

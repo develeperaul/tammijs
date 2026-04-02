@@ -5,7 +5,7 @@
       <div class="col-6">
         <div class="text-h5">Остатки товаров</div>
         <div class="text-caption text-grey-7">
-          Всего позиций: {{ items.length }}
+          Всего позиций: {{ allStockItems.length }}
           <q-badge
             v-if="lowStockCount > 0"
             :label="`${lowStockCount} критических`"
@@ -15,27 +15,26 @@
         </div>
       </div>
       <div class="col-6 text-right">
-        <q-btn
+        <!-- <q-btn
           color="secondary"
           label="Приход по фото"
           icon="photo_camera"
           @click="openAIDialog"
           class="q-mr-sm"
-        />
-        <q-btn
+        /> -->
+        <!-- <q-btn
           color="primary"
           label="Приход"
           icon="add"
           @click="openGlobalIncome"
           class="q-mr-sm"
-        />
+        /> -->
         <q-btn
-    color="primary"
-    label="Накладная"
-    icon="assignment"
-    @click="openInvoiceDialog"
-  />
-
+          color="primary"
+          label="Накладная"
+          icon="assignment"
+          @click="openInvoiceDialog"
+        />
         <q-btn
           color="negative"
           label="Списание"
@@ -54,7 +53,7 @@
       :items="filteredItems"
       :categories="categories"
       :loading="loading"
-      @refresh="loadStock"
+      @refresh="loadAll"
       @resetFilters="resetFilters"
       @income="openIncomeDialog"
       @write-off="openWriteOffDialog"
@@ -62,16 +61,17 @@
     />
 
     <!-- Диалоги -->
-     <income-dialog
+    <income-dialog
       v-model="incomeDialog"
       :product="selectedProduct"
-      :products="items"
+      :products="allStockItems"
       @ok="onIncome"
       @hide="selectedProduct = null"
     />
-      <invoice-dialog
+
+    <!-- Новый диалог накладной (только ингредиенты) -->
+    <invoice-dialog
       v-model="invoiceDialog"
-      :products="items"
       @ok="onInvoiceSave"
       @hide="invoiceDialog = false"
     />
@@ -79,7 +79,7 @@
     <write-off-dialog
       v-model="writeOffDialog"
       :product="selectedProduct"
-      :products="items"
+      :products="allStockItems"
       @ok="onWriteOff"
       @hide="selectedProduct = null"
     />
@@ -98,14 +98,16 @@ import { defineComponent, ref, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import stockService from 'src/services/stock.service';
 import productService from 'src/services/product.service';
+import ingredientService from 'src/services/ingredient.service';
 import { Product } from 'src/types/product.types';
+import { Ingredient } from 'src/types/ingredient.types';
 import { ProductCategory } from 'src/types/product.types';
-import { StockMovement } from 'src/types/stokc.types';
+import { StockMovement } from 'src/types/stock.types';
 import StockTable from 'components/stock/StockTable.vue';
 import IncomeDialog from 'components/stock/IncomeDialog.vue';
-import InvoiceDialog from 'components/stock/InvoiceDialog.vue';
+import InvoiceDialog from 'components/invoice/InvoiceDialog.vue';
 import WriteOffDialog from 'components/stock/WriteOffDialog.vue';
-import HistoryDialog from 'components/stock/HistoryDialog.vue'; // создадим далее
+import HistoryDialog from 'components/stock/HistoryDialog.vue';
 
 export default defineComponent({
   name: 'StockPage',
@@ -113,24 +115,26 @@ export default defineComponent({
   components: {
     StockTable,
     IncomeDialog,
+    InvoiceDialog,
     WriteOffDialog,
-    HistoryDialog,
-    InvoiceDialog
+    HistoryDialog
   },
 
   setup() {
     const $q = useQuasar();
-    const items = ref<Product[]>([]);
+
+    // Ингредиенты (сырьё)
+    const ingredients = ref<Ingredient[]>([]);
+    // Товары перепродажи (кола, чипсы) — имеют остатки
+    const resaleProducts = ref<Product[]>([]);
     const categories = ref<ProductCategory[]>([]);
     const loading = ref(false);
-    const selectedProduct = ref<Product | null>(null);
+    const selectedProduct = ref<Product | Ingredient | null>(null);
     const productHistory = ref<StockMovement[]>([]);
 
     // Диалоги
     const incomeDialog = ref(false);
     const invoiceDialog = ref(false);
-
-
     const writeOffDialog = ref(false);
     const historyDialog = ref(false);
 
@@ -142,9 +146,14 @@ export default defineComponent({
       lowStock: false
     });
 
-    // Отфильтрованные товары
+    // Объединяем только то, что имеет остатки
+    const allStockItems = computed(() => {
+      return [...ingredients.value, ...resaleProducts.value];
+    });
+
+    // Отфильтрованные товары для таблицы
     const filteredItems = computed(() => {
-      let filtered = items.value;
+      let filtered = allStockItems.value;
 
       if (filters.value.search) {
         const s = filters.value.search.toLowerCase();
@@ -163,17 +172,26 @@ export default defineComponent({
     });
 
     const lowStockCount = computed(() => {
-      return items.value.filter(p => p.currentStock <= p.minStock).length;
+      return allStockItems.value.filter(p => p.currentStock <= p.minStock).length;
     });
 
-    const loadStock = async () => {
-      loading.value = true;
+    // Загрузка ингредиентов
+    const loadIngredients = async () => {
       try {
-        items.value = (await stockService.getCurrentStock()).data;
+        const response = await ingredientService.getAll();
+        ingredients.value = response.data || [];
       } catch (error) {
-        $q.notify({ type: 'negative', message: 'Ошибка загрузки остатков' });
-      } finally {
-        loading.value = false;
+        $q.notify({ type: 'negative', message: 'Ошибка загрузки ингредиентов' });
+      }
+    };
+
+    // Загрузка товаров перепродажи (только тип resale)
+    const loadResaleProducts = async () => {
+      try {
+        const response = await productService.getProducts();
+        resaleProducts.value = response.data.filter(p => p.type === 'resale');
+      } catch (error) {
+        console.error('Ошибка загрузки товаров перепродажи:', error);
       }
     };
 
@@ -182,6 +200,17 @@ export default defineComponent({
         categories.value = await productService.getCategories();
       } catch (error) {
         console.error('Ошибка загрузки категорий:', error);
+      }
+    };
+
+    const loadAll = async () => {
+      loading.value = true;
+      try {
+        await Promise.all([loadIngredients(), loadResaleProducts()]);
+      } catch (error) {
+        $q.notify({ type: 'negative', message: 'Ошибка загрузки данных' });
+      } finally {
+        loading.value = false;
       }
     };
 
@@ -194,23 +223,20 @@ export default defineComponent({
       };
     };
 
-    // Приход (для конкретного товара)
-    const openIncomeDialog = (product: Product) => {
+    // Приход
+    const openIncomeDialog = (product: Product | Ingredient) => {
       selectedProduct.value = product;
       incomeDialog.value = true;
     };
 
-    // Глобальный приход (без выбора товара)
     const openGlobalIncome = () => {
       selectedProduct.value = null;
       incomeDialog.value = true;
     };
 
     const onIncome = async (data: any) => {
-      console.log(data);
-
       try {
-        const result = await stockService.addMovement({
+        await stockService.addMovement({
           productId: data.productId,
           type: 'income',
           quantity: data.quantity,
@@ -219,70 +245,44 @@ export default defineComponent({
           comment: data.comment
         });
         $q.notify({ type: 'positive', message: 'Приход добавлен' });
-        await loadStock(); // обновляем список
+        await loadAll();
       } catch (error: any) {
         $q.notify({ type: 'negative', message: error.message || 'Ошибка' });
       }
     };
 
+    // Накладная
     const openInvoiceDialog = () => {
       invoiceDialog.value = true;
     };
 
-    const onInvoiceSave = async (invoiceData: {
-      supplierId: number;
-      number: string;
-      date: string;
-      items: Array<{
-        productId: number;
-        quantity: number;
-        price: number;
-      }>;
-    }) => {
+    const onInvoiceSave = async (invoiceData: any) => {
       loading.value = true;
-      console.log(invoiceData);
-
       try {
-        // Отправляем каждую позицию отдельно
         for (const item of invoiceData.items) {
-          const movementData = {
+          await stockService.addMovement({
             productId: item.productId,
             type: 'income',
             quantity: item.quantity,
             price: item.price,
             documentType: 'invoice',
-            documentId: parseInt(invoiceData.number) || 0, // если номер может быть числом
-            comment: `Накладная №${invoiceData.number} от ${invoiceData.date}, поставщик ID: ${invoiceData.supplierId}`,
-            supplierId: invoiceData.supplierId,
-          };
-
-          console.log('Отправка движения:', movementData); // для отладки
-
-          await stockService.addMovement(movementData);
+            documentId: parseInt(invoiceData.number) || 0,
+            comment: `Накладная №${invoiceData.number} от ${invoiceData.date}`,
+            supplierId: invoiceData.supplierId
+          });
         }
-
-        $q.notify({
-          type: 'positive',
-          message: 'Накладная успешно проведена'
-        });
-
-        // Обновляем список остатков
-        await loadStock();
+        $q.notify({ type: 'positive', message: 'Накладная проведена' });
+        await loadAll();
         invoiceDialog.value = false;
-
       } catch (error: any) {
-        console.error('Ошибка при сохранении накладной:', error);
-        $q.notify({
-          type: 'negative',
-          message: error.message || 'Ошибка при сохранении накладной'
-        });
+        $q.notify({ type: 'negative', message: error.message || 'Ошибка' });
       } finally {
         loading.value = false;
       }
     };
 
     // Списание
-    const openWriteOffDialog = (product: Product) => {
+    const openWriteOffDialog = (product: Product | Ingredient) => {
       selectedProduct.value = product;
       writeOffDialog.value = true;
     };
@@ -294,22 +294,22 @@ export default defineComponent({
 
     const onWriteOff = async (data: { items: Array<{ productId: number; quantity: number }>; reason: string }) => {
       try {
-        const result = await stockService.writeOff({
+        await stockService.writeOff({
           items: data.items,
           reason: data.reason
         });
         $q.notify({ type: 'positive', message: 'Списание выполнено' });
-        await loadStock();
+        await loadAll();
       } catch (error: any) {
         $q.notify({ type: 'negative', message: error.message || 'Ошибка' });
       }
     };
 
     // История
-    const openHistoryDialog = async (product: Product) => {
+    const openHistoryDialog = async (product: Product | Ingredient) => {
       selectedProduct.value = product;
       try {
-        productHistory.value = (await stockService.getProductHistory(product.id));
+        productHistory.value = await stockService.getProductHistory(product.id);
         historyDialog.value = true;
       } catch (error) {
         $q.notify({ type: 'negative', message: 'Ошибка загрузки истории' });
@@ -317,34 +317,36 @@ export default defineComponent({
     };
 
     onMounted(() => {
-      loadStock();
+      loadAll();
       loadCategories();
     });
 
     return {
-      items,
+      ingredients,
+      resaleProducts,
       categories,
       loading,
       filters,
       filteredItems,
+      allStockItems,
       lowStockCount,
       incomeDialog,
+      invoiceDialog,
       writeOffDialog,
       historyDialog,
       selectedProduct,
       productHistory,
-      loadStock,
+      loadAll,
       resetFilters,
       openIncomeDialog,
       openGlobalIncome,
       onIncome,
+      openInvoiceDialog,
+      onInvoiceSave,
       openWriteOffDialog,
       openGlobalWriteOff,
       onWriteOff,
-      openHistoryDialog,
-      invoiceDialog,
-      openInvoiceDialog,
-      onInvoiceSave
+      openHistoryDialog
     };
   }
 });

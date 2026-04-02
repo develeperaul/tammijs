@@ -1,4 +1,5 @@
 import { api } from 'boot/axios';
+import { ApiResponse } from 'src/types/api.types';
 import { Supplier, CreateSupplierDto } from 'src/types/supplier.types';
 
 class SupplierService {
@@ -16,7 +17,7 @@ class SupplierService {
   /**
    * Получить всех поставщиков
    */
-  async getSuppliers(): Promise<Supplier[]> {
+  async getSuppliers(): Promise<ApiResponse<Supplier[]>> {
     const response = await api.get('/index.php', {
       params: { action: 'suppliers.get' }
     });
